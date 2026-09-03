@@ -31,22 +31,22 @@ export async function createTestSession(options: {
   });
   const db = getDb();
 
-  db.insert(organizations).values({ id: organizationId, name: `Entreprise ${organizationId}` })
-    .onConflictDoNothing().run();
-  db.insert(organization).values({
+  await db.insert(organizations).values({ id: organizationId, name: `Entreprise ${organizationId}` })
+    .onConflictDoNothing();
+  await db.insert(organization).values({
     id: organizationId,
     name: `Entreprise ${organizationId}`,
     slug: `entreprise-${organizationId.toLocaleLowerCase("fr").replace(/[^a-z0-9]+/g, "-")}`,
     createdAt: new Date(),
-  }).onConflictDoNothing().run();
-  db.insert(member).values({
+  }).onConflictDoNothing();
+  await db.insert(member).values({
     id: crypto.randomUUID(),
     organizationId,
     userId: signedUp.response.user.id,
     role,
     createdAt: new Date(),
     customerId: options.customerId ?? null,
-  }).run();
+  });
 
   const getSetCookie = (signedUp.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
   const setCookies = getSetCookie?.call(signedUp.headers)

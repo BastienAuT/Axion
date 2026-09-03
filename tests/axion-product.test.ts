@@ -124,7 +124,7 @@ describe("Axion", () => {
     expect(packageJson.devDependencies?.vite).toBeUndefined();
   });
 
-  test("conserve la persistance métier locale et son journal d’audit", async () => {
+  test("conserve la persistance métier locale ou Turso et son journal d’audit", async () => {
     const [schema, database, route] = await Promise.all([
       readSource("db/schema.ts"),
       readSource("db/index.ts"),
@@ -133,7 +133,8 @@ describe("Axion", () => {
 
     expect(schema).toContain("interventions");
     expect(schema).toContain("auditLogs");
-    expect(database).toContain('from "bun:sqlite"');
+    expect(database).toContain('from "@libsql/client"');
+    expect(database).toContain("TURSO_DATABASE_URL");
     expect(route).toContain('action: "intervention.created"');
     expect(route).toContain('action: "intervention.status_changed"');
   });

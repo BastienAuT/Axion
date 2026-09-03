@@ -7,7 +7,9 @@ const DESCRIPTION =
   "Planifiez, suivez et clôturez vos interventions terrain avec Axion.";
 
 function getMetadataBase() {
-  const configuredUrl = process.env.APP_URL?.trim();
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  const configuredUrl = process.env.APP_URL?.trim()
+    ?? (vercelUrl ? `https://${vercelUrl}` : undefined);
 
   if (!configuredUrl) {
     return new URL(FALLBACK_APP_URL);

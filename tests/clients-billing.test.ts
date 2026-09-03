@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { and, eq, or } from "drizzle-orm";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { POST as createBilling, PATCH as updateBilling } from "../app/api/billing/route";
 import {
   canTransitionBilling,
@@ -24,7 +24,7 @@ process.env.DATABASE_PATH = ":memory:";
 let authHeaders = new Headers();
 
 beforeAll(async () => {
-  migrate(getDb(), { migrationsFolder: "./drizzle" });
+  await migrate(getDb(), { migrationsFolder: "./drizzle" });
   authHeaders = (await createTestSession()).headers;
 });
 
@@ -90,7 +90,7 @@ describe("persistance clients et facturation", () => {
       siteId = clientBody.client.sites[0].id;
       expect(clientResponse.status).toBe(201);
       expect(clientBody.client.email).toBe("lou@boreal.example");
-      expect(db.select().from(sites).where(eq(sites.id, siteId)).get()?.city).toBe("Lyon");
+      expect((await db.select().from(sites).where(eq(sites.id, siteId)).get())?.city).toBe("Lyon");
 
       const billingResponse = await createBilling(new Request("http://localhost/api/billing", {
         method: "POST",
@@ -114,25 +114,25 @@ describe("persistance clients et facturation", () => {
       expect((await updateResponse.json() as { document: { status: string } }).document.status)
         .toBe("sent");
 
-      const actions = db.select({ action: auditLogs.action }).from(auditLogs).where(or(
+      const actions = (await db.select({ action: auditLogs.action }).from(auditLogs).where(or(
         eq(auditLogs.entityId, customerId),
         eq(auditLogs.entityId, documentId),
-      )).all().map((log) => log.action).sort();
+      )).all()).map((log) => log.action).sort();
       expect(actions).toEqual(["billing.created", "billing.status_changed", "customer.created"]);
     } finally {
       if (documentId) {
-        db.delete(auditLogs).where(eq(auditLogs.entityId, documentId)).run();
-        db.delete(billingDocuments).where(eq(billingDocuments.id, documentId)).run();
+        await db.delete(auditLogs).where(eq(auditLogs.entityId, documentId));
+        await db.delete(billingDocuments).where(eq(billingDocuments.id, documentId));
       }
       if (customerId) {
-        db.delete(auditLogs).where(eq(auditLogs.entityId, customerId)).run();
-        db.delete(sites).where(eq(sites.customerId, customerId)).run();
-        db.delete(customers).where(eq(customers.id, customerId)).run();
+        await db.delete(auditLogs).where(eq(auditLogs.entityId, customerId));
+        await db.delete(sites).where(eq(sites.customerId, customerId));
+        await db.delete(customers).where(eq(customers.id, customerId));
       }
-      db.delete(billingSequences).where(and(
+      await db.delete(billingSequences).where(and(
         eq(billingSequences.organizationId, "org_axion_demo"),
         eq(billingSequences.kind, "Facture"),
-      )).run();
+      ));
     }
   });
 
@@ -140,15 +140,15 @@ describe("persistance clients et facturation", () => {
     const db = getDb();
     const customerId = crypto.randomUUID();
     const documentId = crypto.randomUUID();
-    db.insert(customers).values({
+    await db.insert(customers).values({
       id: customerId,
       organizationId: "org_axion_demo",
       name: validClient.name,
       contactName: validClient.contact,
       email: "existing@example.test",
       phone: validClient.phone,
-    }).run();
-    db.insert(billingDocuments).values({
+    });
+    await db.insert(billingDocuments).values({
       id: documentId,
       organizationId: "org_axion_demo",
       kind: "Facture",
@@ -157,7 +157,7 @@ describe("persistance clients et facturation", () => {
       date: "2026-09-03",
       amountCents: 10000,
       status: "paid",
-    }).run();
+    });
     try {
       const duplicate = await createClient(new Request("http://localhost/api/clients", {
         method: "POST",
@@ -173,8 +173,8 @@ describe("persistance clients et facturation", () => {
       }));
       expect(invalidTransition.status).toBe(409);
     } finally {
-      db.delete(billingDocuments).where(eq(billingDocuments.id, documentId)).run();
-      db.delete(customers).where(eq(customers.id, customerId)).run();
+      await db.delete(billingDocuments).where(eq(billingDocuments.id, documentId));
+      await db.delete(customers).where(eq(customers.id, customerId));
     }
   });
 });

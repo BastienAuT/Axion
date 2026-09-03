@@ -30,33 +30,33 @@ if (!shouldSeed) {
   process.exit(0);
 }
 
-db.transaction((tx) => {
-  tx.insert(organizations).values({ id: ORGANIZATION_ID, name: "Axion Démonstration" })
-    .onConflictDoNothing().run();
-  seedClients.forEach((client, clientIndex) => {
+await db.transaction(async (tx) => {
+  await tx.insert(organizations).values({ id: ORGANIZATION_ID, name: "Axion Démonstration" })
+    .onConflictDoNothing();
+  for (const [clientIndex, client] of seedClients.entries()) {
     const customerId = `10000000-0000-4000-8000-${String(clientIndex + 1).padStart(12, "0")}`;
-    tx.insert(customers).values({
+    await tx.insert(customers).values({
       id: customerId,
       organizationId: ORGANIZATION_ID,
       name: client.name,
       contactName: client.contact,
       email: client.email,
       phone: client.phone,
-    }).onConflictDoNothing().run();
-    client.sites.forEach((site, siteIndex) => {
-      tx.insert(sites).values({
+    }).onConflictDoNothing();
+    for (const [siteIndex, site] of client.sites.entries()) {
+      await tx.insert(sites).values({
         id: `11000000-0000-4000-8000-${String(clientIndex * 10 + siteIndex + 1).padStart(12, "0")}`,
         organizationId: ORGANIZATION_ID,
         customerId,
         name: site.name,
         address: site.address,
         city: site.city ?? "Lyon",
-      }).onConflictDoNothing().run();
-    });
-  });
+      }).onConflictDoNothing();
+    }
+  }
 
-  seedBillingDocuments.forEach((document) => {
-    tx.insert(billingDocuments).values({
+  for (const document of seedBillingDocuments) {
+    await tx.insert(billingDocuments).values({
       id: document.id,
       organizationId: ORGANIZATION_ID,
       kind: document.kind,
@@ -65,15 +65,15 @@ db.transaction((tx) => {
       date: document.date,
       amountCents: Math.round(document.amount * 100),
       status: document.status,
-    }).onConflictDoNothing().run();
-  });
+    }).onConflictDoNothing();
+  }
 
   const currentYear = new Date().getFullYear();
-  ([
+  for (const { kind, lastValue } of [
     { kind: "Facture" as const, lastValue: 87 },
     { kind: "Devis" as const, lastValue: 41 },
-  ]).forEach(({ kind, lastValue }) => {
-    tx.insert(billingSequences).values({
+  ]) {
+    await tx.insert(billingSequences).values({
       organizationId: ORGANIZATION_ID,
       kind,
       year: currentYear,
@@ -81,8 +81,8 @@ db.transaction((tx) => {
     }).onConflictDoUpdate({
       target: [billingSequences.organizationId, billingSequences.kind, billingSequences.year],
       set: { lastValue: sql`max(${billingSequences.lastValue}, ${lastValue})` },
-    }).run();
-  });
+    });
+  }
 });
 
 const demoPassword = process.env.DEMO_AUTH_PASSWORD ?? "Axion-Demo-2026!";
@@ -101,7 +101,7 @@ const accounts = [
 ] as const;
 
 async function ensureUser(identity: (typeof accounts)[number]) {
-  const existing = db.select({ id: user.id }).from(user)
+  const existing = await db.select({ id: user.id }).from(user)
     .where(sql`lower(${user.email}) = ${identity.email}`).get();
   if (existing) return existing.id;
   if (!existing) {
@@ -122,27 +122,27 @@ const identities = await Promise.all(accounts.map(async (identity) => ({
   userId: await ensureUser(identity),
 })));
 
-db.transaction((tx) => {
-  tx.insert(organization).values({
+await db.transaction(async (tx) => {
+  await tx.insert(organization).values({
     id: ORGANIZATION_ID,
     name: "Durand Maintenance",
     slug: "durand-maintenance",
     createdAt: new Date(),
     metadata: JSON.stringify({ demo: true }),
-  }).onConflictDoNothing().run();
+  }).onConflictDoNothing();
 
-  identities.forEach(({ identity, userId }, index) => {
-    tx.insert(member).values({
+  for (const [index, { identity, userId }] of identities.entries()) {
+    await tx.insert(member).values({
       id: `30000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
       organizationId: ORGANIZATION_ID,
       userId,
       role: identity.role,
       createdAt: new Date(),
       customerId: "customerId" in identity ? identity.customerId : null,
-    }).onConflictDoNothing().run();
+    }).onConflictDoNothing();
     // signUpEmail creates a server-side bootstrap session whose cookie is never exposed.
-    tx.delete(session).where(sql`${session.userId} = ${userId}`).run();
-  });
+    await tx.delete(session).where(sql`${session.userId} = ${userId}`);
+  }
 
   const customerIds = new Map(
     seedClients.map((client, index) => [
@@ -156,16 +156,16 @@ db.transaction((tx) => {
       .map(({ identity, userId }) => [identity.name, userId]),
   );
 
-  seedInterventions.forEach((intervention) => {
-    tx.insert(interventions).values({
+  for (const intervention of seedInterventions) {
+    await tx.insert(interventions).values({
       ...intervention,
       organizationId: ORGANIZATION_ID,
       customerId: customerIds.get(intervention.customerName) ?? null,
       technicianUserId: technicianIds.get(intervention.technician) ?? null,
-    }).onConflictDoNothing().run();
-  });
-  seedReports.forEach((report) => {
-    tx.insert(reports).values({
+    }).onConflictDoNothing();
+  }
+  for (const report of seedReports) {
+    await tx.insert(reports).values({
       id: report.id,
       organizationId: ORGANIZATION_ID,
       interventionId: report.interventionId,
@@ -175,26 +175,26 @@ db.transaction((tx) => {
       signedAt: report.signedAt,
       signatureData: report.signatureData,
       createdAt: report.createdAt,
-    }).onConflictDoNothing().run();
-  });
-  seedClients.forEach((client) => {
+    }).onConflictDoNothing();
+  }
+  for (const client of seedClients) {
     const customerId = customerIds.get(client.name);
-    if (!customerId) return;
-    tx.update(interventions).set({ customerId }).where(and(
+    if (!customerId) continue;
+    await tx.update(interventions).set({ customerId }).where(and(
       eq(interventions.organizationId, ORGANIZATION_ID),
       eq(interventions.customerName, client.name),
-    )).run();
-    tx.update(billingDocuments).set({ customerId }).where(and(
+    ));
+    await tx.update(billingDocuments).set({ customerId }).where(and(
       eq(billingDocuments.organizationId, ORGANIZATION_ID),
       eq(billingDocuments.client, client.name),
-    )).run();
-  });
-  technicianIds.forEach((userId, technicianName) => {
-    tx.update(interventions).set({ technicianUserId: userId }).where(and(
+    ));
+  }
+  for (const [technicianName, userId] of technicianIds) {
+    await tx.update(interventions).set({ technicianUserId: userId }).where(and(
       eq(interventions.organizationId, ORGANIZATION_ID),
       eq(interventions.technician, technicianName),
-    )).run();
-  });
+    ));
+  }
 });
 
 console.info(`Base Axion prête : démo et ${identities.length} comptes Better Auth vérifiés.`);

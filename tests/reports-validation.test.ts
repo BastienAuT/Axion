@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { eq, or } from "drizzle-orm";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { GET, POST } from "../app/api/reports/route";
 import { canFinalizeReport, validateReport } from "../app/api/reports/validation";
 import { getDb } from "../db";
@@ -12,7 +12,7 @@ process.env.DATABASE_PATH = ":memory:";
 let authHeaders = new Headers();
 
 beforeAll(async () => {
-  migrate(getDb(), { migrationsFolder: "./drizzle" });
+  await migrate(getDb(), { migrationsFolder: "./drizzle" });
   authHeaders = (await createTestSession()).headers;
 });
 
@@ -170,7 +170,7 @@ describe("contrat HTTP des rapports", () => {
     const db = getDb();
     const interventionId = crypto.randomUUID();
     let reportId: string | undefined;
-    db.insert(interventions).values({
+    await db.insert(interventions).values({
       id: interventionId,
       organizationId: "org_axion_demo",
       reference: `INT-TEST-${interventionId.slice(0, 8)}`,
@@ -184,7 +184,7 @@ describe("contrat HTTP des rapports", () => {
       durationMinutes: 30,
       priority: "normal",
       status: "in_progress",
-    }).run();
+    });
 
     try {
       const response = await POST(new Request("http://localhost/api/reports", {
@@ -203,17 +203,17 @@ describe("contrat HTTP des rapports", () => {
       expect(body.report.summary).toBe(validPayload.summary);
       expect(body.intervention).toMatchObject({ id: interventionId, status: "completed" });
 
-      const storedIntervention = db
+      const storedIntervention = await db
         .select()
         .from(interventions)
         .where(eq(interventions.id, interventionId))
         .get();
-      const storedReport = db
+      const storedReport = await db
         .select()
         .from(reports)
         .where(eq(reports.interventionId, interventionId))
         .get();
-      const logs = db
+      const logs = await db
         .select()
         .from(auditLogs)
         .where(or(
@@ -237,22 +237,22 @@ describe("contrat HTTP des rapports", () => {
       expect(reportMetadata.signatureMethod).toBe("drawn");
       expect(reportMetadata.signatureHash).toMatch(/^[0-9a-f]{64}$/);
     } finally {
-      const storedReport = db
+      const storedReport = await db
         .select({ id: reports.id })
         .from(reports)
         .where(eq(reports.interventionId, interventionId))
         .get();
       reportId ??= storedReport?.id;
       if (reportId) {
-        db.delete(auditLogs).where(or(
+        await db.delete(auditLogs).where(or(
           eq(auditLogs.entityId, interventionId),
           eq(auditLogs.entityId, reportId),
-        )).run();
+        ));
       } else {
-        db.delete(auditLogs).where(eq(auditLogs.entityId, interventionId)).run();
+        await db.delete(auditLogs).where(eq(auditLogs.entityId, interventionId));
       }
-      db.delete(reports).where(eq(reports.interventionId, interventionId)).run();
-      db.delete(interventions).where(eq(interventions.id, interventionId)).run();
+      await db.delete(reports).where(eq(reports.interventionId, interventionId));
+      await db.delete(interventions).where(eq(interventions.id, interventionId));
     }
   });
 });

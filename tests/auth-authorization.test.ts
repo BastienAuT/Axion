@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { GET as getBilling } from "../app/api/billing/route";
 import { GET as getAuthContext } from "../app/api/auth/context/route";
 import { GET as getInterventions, PATCH as updateIntervention } from "../app/api/interventions/route";
@@ -23,7 +23,7 @@ let technicianAUserId = "";
 let clientA = new Headers();
 
 beforeAll(async () => {
-  migrate(getDb(), { migrationsFolder: "./drizzle" });
+  await migrate(getDb(), { migrationsFolder: "./drizzle" });
   managerA = (await createTestSession({ role: "manager", organizationId: organizationA })).headers;
   const technician = await createTestSession({
     role: "technician",
@@ -49,7 +49,7 @@ beforeAll(async () => {
     priority: "normal" as const,
     status: "scheduled" as const,
   };
-  getDb().insert(interventions).values([
+  await getDb().insert(interventions).values([
     {
       ...common,
       id: assignedInterventionId,
@@ -83,7 +83,7 @@ beforeAll(async () => {
       title: "Mission autre entreprise",
       technician: "Technicien étranger",
     },
-  ]).run();
+  ]);
 });
 
 async function visibleIds(headers: Headers) {

@@ -7,7 +7,7 @@ Application SaaS de gestion d’interventions terrain pour artisans et équipes 
 - Bun 1.3+
 - Next.js 16 avec App Router et Turbopack
 - TypeScript et design system CSS sur mesure
-- Drizzle ORM avec SQLite via `bun:sqlite`
+- Drizzle ORM avec libSQL : SQLite local et Turso en production
 - Better Auth 1.7 avec sessions persistantes et autorisations par organisation
 - PWA avec shell de navigation disponible hors connexion
 
@@ -30,7 +30,7 @@ bun run start        # serveur de production avec Bun
 bun run check        # types, lint, tests et build
 bun run db:generate  # générer une migration Drizzle
 bun run auth:schema  # régénérer le schéma Better Auth
-bun run db:migrate   # appliquer les migrations SQLite
+bun run db:migrate   # appliquer les migrations SQLite/libSQL
 bun run db:studio    # explorer la base locale
 ```
 
@@ -44,7 +44,9 @@ BETTER_AUTH_SECRET=un-secret-aleatoire-de-32-caracteres-minimum
 SEED_DEMO_DATA=true
 ```
 
-La base locale est créée dans `data/axion.sqlite`. `APP_URL` doit contenir
+La base locale est créée dans `data/axion.sqlite`. En production, les variables
+`TURSO_DATABASE_URL` et `TURSO_AUTH_TOKEN` remplacent automatiquement ce fichier.
+`APP_URL` doit contenir
 l’origine publique complète de l’application en production, par exemple
 `https://axion.example.com`. Elle sert à générer des métadonnées sociales et
 configure l’origine de confiance de Better Auth sans faire confiance à l’en-tête
@@ -99,16 +101,30 @@ persistés. La numérotation commerciale est séquentielle par année et par typ
 et les transitions de statut d’un devis sont distinctes de celles d’une facture.
 
 Les photos JPEG/PNG jointes à un rapport sont vérifiées d’après leur contenu,
-limitées à 2 Mo chacune, conservées dans SQLite et consultables depuis la fiche.
-Leur empreinte SHA-256 est journalisée. Ce stockage intégré convient à une
-installation locale ou sur serveur persistant ; un déploiement horizontal devra
-le remplacer par un stockage objet privé.
+limitées à 2 Mo chacune, conservées dans libSQL et consultables depuis la fiche.
+Leur empreinte SHA-256 est journalisée. Un plafond applicatif de 25 Mo de photos
+par organisation protège le quota gratuit de la base.
 
-## Passage en production
+## Déploiement Vercel + Turso à 0 €
 
-Définissez `SEED_DEMO_DATA=false`, utilisez un secret unique, servez l’application
-en HTTPS et conservez la base sur un volume persistant. L’amorçage de démonstration
-est désactivé par défaut quand `NODE_ENV=production`. Pour les invitations et la
-réinitialisation des mots de passe, il restera à connecter le fournisseur d’e-mail
-transactionnel choisi. Un déploiement multi-instance devra aussi migrer SQLite
-vers PostgreSQL et les photos vers un stockage objet privé.
+1. Créez une base sur l’offre gratuite Turso, sans activer les dépassements payants.
+2. Importez ce dépôt dans un projet personnel Vercel utilisant l’offre Hobby.
+3. Ajoutez ces variables aux environnements Production et Preview :
+
+```dotenv
+TURSO_DATABASE_URL=libsql://votre-base.turso.io
+TURSO_AUTH_TOKEN=votre-jeton
+BETTER_AUTH_SECRET=un-secret-aleatoire-unique-de-32-caracteres-minimum
+SEED_DEMO_DATA=true
+DEMO_AUTH_PASSWORD=un-mot-de-passe-de-demo-fort
+```
+
+`APP_URL` est facultatif sur Vercel : l’application utilise automatiquement le
+domaine du déploiement. Le build applique les migrations Drizzle et l’amorçage
+idempotent. Pour un portfolio, gardez `SEED_DEMO_DATA=true`. Pour une vraie
+utilisation, mettez-le à `false` après avoir créé les comptes nécessaires.
+
+Le projet n’utilise aucun service de stockage payant séparé. Vercel et Turso
+bloquent les usages lorsque leurs quotas gratuits sont atteints si aucun
+dépassement payant n’est activé. Les invitations et réinitialisations par e-mail
+ne sont volontairement pas branchées afin de ne pas ajouter de coût externe.

@@ -80,13 +80,13 @@ export async function POST(request: Request) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const reference = createInterventionReference();
       try {
-        const row = db.transaction((tx) => {
-          const customer = tx.select({ id: customers.id }).from(customers).where(and(
+        const row = await db.transaction(async (tx) => {
+          const customer = await tx.select({ id: customers.id }).from(customers).where(and(
             eq(customers.organizationId, context.organizationId),
             sql`lower(${customers.name}) = lower(${validated.value.customerName})`,
           )).get();
           if (!customer) throw new CustomerNotFoundError();
-          const technician = tx.select({ id: user.id }).from(user).innerJoin(
+          const technician = await tx.select({ id: user.id }).from(user).innerJoin(
             member,
             and(
               eq(member.userId, user.id),
@@ -103,8 +103,8 @@ export async function POST(request: Request) {
             ...validated.value,
             status: "scheduled" as const,
           };
-          tx.insert(interventions).values(created).run();
-          tx.insert(auditLogs).values({
+          await tx.insert(interventions).values(created).run();
+          await tx.insert(auditLogs).values({
             id: crypto.randomUUID(),
             organizationId: context.organizationId,
             actorId: context.userId,
@@ -147,8 +147,8 @@ export async function PATCH(request: Request) {
 
   try {
     const db = getDb();
-    const updated = db.transaction((tx) => {
-      const current = tx.select().from(interventions).where(and(
+    const updated = await db.transaction(async (tx) => {
+      const current = await tx.select().from(interventions).where(and(
         eq(interventions.id, validated.value.id),
         eq(interventions.organizationId, context.organizationId),
       )).get();
@@ -160,7 +160,7 @@ export async function PATCH(request: Request) {
       }
       if (currentStatus === validated.value.status) return current;
 
-      const next = tx.update(interventions).set({
+      const next = await tx.update(interventions).set({
         status: validated.value.status,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       }).where(and(
@@ -170,7 +170,7 @@ export async function PATCH(request: Request) {
       )).returning().get();
 
       if (!next) throw new ConcurrentStatusUpdateError();
-      tx.insert(auditLogs).values({
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { eq, or } from "drizzle-orm";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { GET as downloadAttachment } from "../app/api/attachments/[id]/route";
 import { GET as listAttachments, POST as uploadAttachments } from "../app/api/attachments/route";
 import {
@@ -17,7 +17,7 @@ process.env.DATABASE_PATH = ":memory:";
 let authHeaders = new Headers();
 
 beforeAll(async () => {
-  migrate(getDb(), { migrationsFolder: "./drizzle" });
+  await migrate(getDb(), { migrationsFolder: "./drizzle" });
   authHeaders = (await createTestSession()).headers;
 });
 
@@ -47,7 +47,7 @@ describe("stockage des pièces jointes", () => {
     const interventionId = crypto.randomUUID();
     const reportId = crypto.randomUUID();
     let attachmentId = "";
-    db.insert(interventions).values({
+    await db.insert(interventions).values({
       id: interventionId,
       organizationId: "org_axion_demo",
       reference: `INT-PHOTO-${interventionId.slice(0, 8)}`,
@@ -59,15 +59,15 @@ describe("stockage des pièces jointes", () => {
       scheduledDate: "2026-09-03",
       scheduledTime: "10:00",
       status: "completed",
-    }).run();
-    db.insert(reports).values({
+    });
+    await db.insert(reports).values({
       id: reportId,
       organizationId: "org_axion_demo",
       interventionId,
       summary: "Rapport photo",
       clientName: "Client photo",
       signedAt: "2026-09-03T10:30:00.000Z",
-    }).run();
+    });
 
     try {
       const form = new FormData();
@@ -103,19 +103,19 @@ describe("stockage des pièces jointes", () => {
       expect(downloadResponse.headers.get("content-type")).toBe("image/png");
       expect(new Uint8Array(await downloadResponse.arrayBuffer())).toEqual(pngBytes);
 
-      const stored = db.select().from(attachments).where(eq(attachments.id, attachmentId)).get();
+      const stored = await db.select().from(attachments).where(eq(attachments.id, attachmentId)).get();
       expect(stored?.dataBase64.length).toBeGreaterThan(0);
-      const log = db.select().from(auditLogs).where(eq(auditLogs.entityId, reportId)).get();
+      const log = await db.select().from(auditLogs).where(eq(auditLogs.entityId, reportId)).get();
       expect(log?.action).toBe("attachments.created");
       expect(JSON.parse(log?.metadata ?? "{}").files[0].sha256).toMatch(/^[0-9a-f]{64}$/);
     } finally {
-      db.delete(auditLogs).where(or(
+      await db.delete(auditLogs).where(or(
         eq(auditLogs.entityId, reportId),
         eq(auditLogs.entityId, attachmentId),
-      )).run();
-      db.delete(attachments).where(eq(attachments.interventionId, interventionId)).run();
-      db.delete(reports).where(eq(reports.id, reportId)).run();
-      db.delete(interventions).where(eq(interventions.id, interventionId)).run();
+      ));
+      await db.delete(attachments).where(eq(attachments.interventionId, interventionId));
+      await db.delete(reports).where(eq(reports.id, reportId));
+      await db.delete(interventions).where(eq(interventions.id, interventionId));
     }
   });
 

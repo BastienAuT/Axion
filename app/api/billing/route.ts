@@ -67,15 +67,15 @@ export async function POST(request: Request) {
   if (!validated.ok) return errorResponse("Données de facturation invalides", 422, validated.issues);
 
   try {
-    const row = getDb().transaction((tx) => {
-      const client = tx.select({ id: customers.id }).from(customers).where(and(
+    const row = await getDb().transaction(async (tx) => {
+      const client = await tx.select({ id: customers.id }).from(customers).where(and(
         eq(customers.organizationId, context.organizationId),
         sql`lower(${customers.name}) = lower(${validated.value.client})`,
       )).get();
       if (!client) throw new ClientNotFoundError();
 
       const year = Number(dateInParis().slice(0, 4));
-      const sequence = tx.insert(billingSequences).values({
+      const sequence = await tx.insert(billingSequences).values({
         organizationId: context.organizationId,
         kind: validated.value.kind,
         year,
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       const prefix = validated.value.kind === "Facture" ? "FAC" : "DEV";
       const number = `${prefix}-${year}-${String(sequence.value).padStart(4, "0")}`;
       const id = crypto.randomUUID();
-      const document = tx.insert(billingDocuments).values({
+      const document = await tx.insert(billingDocuments).values({
         id,
         organizationId: context.organizationId,
         customerId: client.id,
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         amountCents: validated.value.amountCents,
         status: "draft",
       }).returning().get();
-      tx.insert(auditLogs).values({
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,
@@ -130,8 +130,8 @@ export async function PATCH(request: Request) {
   if (!validated.ok) return errorResponse("Mise à jour de facturation invalide", 422, validated.issues);
 
   try {
-    const row = getDb().transaction((tx) => {
-      const current = tx.select().from(billingDocuments).where(and(
+    const row = await getDb().transaction(async (tx) => {
+      const current = await tx.select().from(billingDocuments).where(and(
         eq(billingDocuments.id, validated.value.id),
         eq(billingDocuments.organizationId, context.organizationId),
       )).get();
@@ -141,7 +141,7 @@ export async function PATCH(request: Request) {
         throw new InvalidBillingTransitionError();
       }
       if (currentStatus === validated.value.status) return current;
-      const updated = tx.update(billingDocuments).set({
+      const updated = await tx.update(billingDocuments).set({
         status: validated.value.status,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       }).where(and(
@@ -150,7 +150,7 @@ export async function PATCH(request: Request) {
         eq(billingDocuments.status, currentStatus),
       )).returning().get();
       if (!updated) throw new ConcurrentBillingUpdateError();
-      tx.insert(auditLogs).values({
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,

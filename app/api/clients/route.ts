@@ -71,8 +71,8 @@ export async function POST(request: Request) {
   if (!validated.ok) return errorResponse("Données client invalides", 422, validated.issues);
 
   try {
-    const client = getDb().transaction((tx) => {
-      const duplicate = tx.select({ id: customers.id }).from(customers).where(and(
+    const client = await getDb().transaction(async (tx) => {
+      const duplicate = await tx.select({ id: customers.id }).from(customers).where(and(
         eq(customers.organizationId, context.organizationId),
         sql`(lower(${customers.name}) = lower(${validated.value.name}) or lower(${customers.email}) = lower(${validated.value.email}))`,
       )).get();
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
       const customerId = crypto.randomUUID();
       const siteId = crypto.randomUUID();
-      tx.insert(customers).values({
+      await tx.insert(customers).values({
         id: customerId,
         organizationId: context.organizationId,
         name: validated.value.name,
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         email: validated.value.email,
         phone: validated.value.phone,
       }).run();
-      tx.insert(sites).values({
+      await tx.insert(sites).values({
         id: siteId,
         organizationId: context.organizationId,
         customerId,
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
         address: validated.value.address,
         city: validated.value.city,
       }).run();
-      tx.insert(auditLogs).values({
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,

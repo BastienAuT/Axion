@@ -31,12 +31,13 @@ export async function GET(request: Request) {
   const context = authenticated.context;
   try {
     const db = getDb();
-    const visibleIds = db.select().from(interventions)
-      .where(eq(interventions.organizationId, context.organizationId)).all()
+    const visibleInterventions = await db.select().from(interventions)
+      .where(eq(interventions.organizationId, context.organizationId)).all();
+    const visibleIds = visibleInterventions
       .filter((intervention) => canAccessIntervention(context, intervention))
       .map((intervention) => intervention.id);
     const rows = visibleIds.length
-      ? db.select().from(reports).where(and(
+      ? await db.select().from(reports).where(and(
           eq(reports.organizationId, context.organizationId),
           inArray(reports.interventionId, visibleIds),
         )).orderBy(desc(reports.createdAt)).all()
@@ -67,8 +68,8 @@ export async function POST(request: Request) {
 
   try {
     const db = getDb();
-    const result = db.transaction((tx) => {
-      const intervention = tx.select().from(interventions).where(and(
+    const result = await db.transaction(async (tx) => {
+      const intervention = await tx.select().from(interventions).where(and(
         eq(interventions.id, validated.value.interventionId),
         eq(interventions.organizationId, context.organizationId),
       )).get();
@@ -78,14 +79,14 @@ export async function POST(request: Request) {
       }
       if (!canFinalizeReport(intervention.status)) throw new InvalidInterventionStatusError();
 
-      const existing = tx.select().from(reports).where(and(
+      const existing = await tx.select().from(reports).where(and(
         eq(reports.interventionId, intervention.id),
         eq(reports.organizationId, context.organizationId),
       )).orderBy(desc(reports.createdAt)).get();
       const signedAt = validated.value.signedAt ?? new Date().toISOString();
 
       const report = existing
-        ? tx.update(reports).set({
+        ? await tx.update(reports).set({
             summary: validated.value.summary,
             materials: validated.value.materials,
             clientName: validated.value.clientName,
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
             eq(reports.organizationId, context.organizationId),
             eq(reports.interventionId, intervention.id),
           )).returning().get()
-        : tx.insert(reports).values({
+        : await tx.insert(reports).values({
             id: crypto.randomUUID(),
             organizationId: context.organizationId,
             interventionId: intervention.id,
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
 
       if (!report) throw new ConcurrentReportFinalizationError();
 
-      const completed = tx.update(interventions).set({
+      const completed = await tx.update(interventions).set({
         status: "completed",
         updatedAt: sql`CURRENT_TIMESTAMP`,
       }).where(and(
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
 
       if (!completed) throw new ConcurrentReportFinalizationError();
 
-      tx.insert(auditLogs).values({
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,
@@ -135,7 +136,7 @@ export async function POST(request: Request) {
           signatureHash,
         }),
       }).run();
-      tx.insert(auditLogs).values({
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,

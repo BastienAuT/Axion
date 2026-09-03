@@ -33,7 +33,7 @@ export async function requireAuthContext(
 
   const activeOrganizationId = session.session.activeOrganizationId;
   const db = getDb();
-  const memberships = db.select().from(member).where(eq(member.userId, session.user.id)).all();
+  const memberships = await db.select().from(member).where(eq(member.userId, session.user.id)).all();
   const membership = activeOrganizationId
     ? memberships.find((item) => item.organizationId === activeOrganizationId)
     : memberships.length === 1
@@ -57,7 +57,7 @@ export async function requireAuthContext(
   if (!role || !allowedRoles.includes(role)) {
     return { ok: false, response: authError("Accès interdit", 403) };
   }
-  const activeOrganization = db.select({ name: organization.name }).from(organization)
+  const activeOrganization = await db.select({ name: organization.name }).from(organization)
     .where(eq(organization.id, membership.organizationId)).get();
 
   return {

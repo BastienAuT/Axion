@@ -16,14 +16,14 @@ export async function GET(
   if (!UUID_PATTERN.test(id)) return Response.json({ error: "Pièce jointe introuvable" }, { status: 404 });
   try {
     const db = getDb();
-    const row = db.select().from(attachments).where(and(
+    const row = await db.select().from(attachments).where(and(
       eq(attachments.id, id),
       eq(attachments.organizationId, authContext.organizationId),
     )).get();
     if (!row || !row.dataBase64) {
       return Response.json({ error: "Pièce jointe introuvable" }, { status: 404 });
     }
-    const intervention = db.select().from(interventions).where(and(
+    const intervention = await db.select().from(interventions).where(and(
       eq(interventions.id, row.interventionId),
       eq(interventions.organizationId, authContext.organizationId),
     )).get();

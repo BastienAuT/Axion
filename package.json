@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun run db:migrate && bun node_modules/next/dist/bin/next dev",
     "build": "bun node_modules/next/dist/bin/next build",
+    "vercel-build": "bun scripts/validate-production-env.ts && bun run db:migrate && bun node_modules/next/dist/bin/next build",
     "start": "bun scripts/validate-production-env.ts && bun node_modules/next/dist/bin/next start",
     "test": "bun test",
     "lint": "eslint . --ignore-pattern .next",
@@ -13,11 +14,12 @@
     "check": "bun run typecheck && bun run lint && bun test && bun run build",
     "db:generate": "drizzle-kit generate",
     "auth:schema": "bunx auth@latest generate --config scripts/better-auth.cli.ts --adapter drizzle --dialect sqlite --output db/better-auth.generated.ts --yes",
-    "db:migrate": "bun scripts/prepare-db.ts && drizzle-kit migrate && bun scripts/seed-demo.ts",
+    "db:migrate": "bun scripts/prepare-db.ts && bun scripts/migrate-db.ts && bun scripts/seed-demo.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.2",
+    "@libsql/client": "^0.18.0",
     "better-auth": "1.7.2",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { attachments, auditLogs, interventions, reports } from "@/db/schema";
 import { canAccessIntervention, requireAuthContext } from "@/lib/auth-context";
@@ -14,10 +14,12 @@ import {
 } from "./validation";
 
 const MAX_ATTACHMENTS_PER_REPORT = 8;
+const MAX_ORGANIZATION_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 
 class ReportNotFoundError extends Error {}
 class AttachmentLimitError extends Error {}
+class AttachmentStorageQuotaError extends Error {}
 
 function errorResponse(message: string, status: number, details?: unknown) {
   return Response.json(
@@ -87,8 +89,9 @@ export async function GET(request: Request) {
   }
   try {
     const db = getDb();
-    const visibleIds = db.select().from(interventions)
-      .where(eq(interventions.organizationId, context.organizationId)).all()
+    const visibleInterventions = await db.select().from(interventions)
+      .where(eq(interventions.organizationId, context.organizationId)).all();
+    const visibleIds = visibleInterventions
       .filter((intervention) => canAccessIntervention(context, intervention))
       .map((intervention) => intervention.id)
       .filter((id) => !interventionId || id === interventionId);
@@ -150,39 +153,51 @@ export async function POST(request: Request) {
   }
 
   try {
-    const rows = getDb().transaction((tx) => {
-      const intervention = tx.select().from(interventions).where(and(
+    const rows = await getDb().transaction(async (tx) => {
+      const intervention = await tx.select().from(interventions).where(and(
         eq(interventions.id, validated.value.interventionId),
         eq(interventions.organizationId, context.organizationId),
       )).get();
       if (!intervention || !canAccessIntervention(context, intervention)) {
         throw new ReportNotFoundError();
       }
-      const report = tx.select({ id: reports.id }).from(reports).where(and(
+      const report = await tx.select({ id: reports.id }).from(reports).where(and(
         eq(reports.id, validated.value.reportId),
         eq(reports.interventionId, validated.value.interventionId),
         eq(reports.organizationId, context.organizationId),
       )).get();
       if (!report) throw new ReportNotFoundError();
-      const currentCount = tx.select({ id: attachments.id }).from(attachments).where(and(
+      const currentRows = await tx.select({ id: attachments.id }).from(attachments).where(and(
         eq(attachments.reportId, report.id),
         eq(attachments.organizationId, context.organizationId),
-      )).all().length;
+      )).all();
+      const currentCount = currentRows.length;
       if (currentCount + prepared.length > MAX_ATTACHMENTS_PER_REPORT) {
         throw new AttachmentLimitError();
       }
-      const inserted = prepared.map((photo) => tx.insert(attachments).values({
-        id: photo.id,
-        organizationId: context.organizationId,
-        interventionId: validated.value.interventionId,
-        reportId: report.id,
-        storageKey: `sqlite:${photo.id}`,
-        filename: photo.filename,
-        contentType: photo.contentType,
-        sizeBytes: photo.sizeBytes,
-        dataBase64: photo.dataBase64,
-      }).returning().get());
-      tx.insert(auditLogs).values({
+      const storedSize = await tx.select({
+        total: sql<number>`coalesce(sum(${attachments.sizeBytes}), 0)`,
+      }).from(attachments).where(eq(attachments.organizationId, context.organizationId)).get();
+      const incomingSize = prepared.reduce((total, photo) => total + photo.sizeBytes, 0);
+      if (Number(storedSize?.total ?? 0) + incomingSize > MAX_ORGANIZATION_ATTACHMENT_BYTES) {
+        throw new AttachmentStorageQuotaError();
+      }
+      const inserted: Array<typeof attachments.$inferSelect> = [];
+      for (const photo of prepared) {
+        const row = await tx.insert(attachments).values({
+          id: photo.id,
+          organizationId: context.organizationId,
+          interventionId: validated.value.interventionId,
+          reportId: report.id,
+          storageKey: `libsql:${photo.id}`,
+          filename: photo.filename,
+          contentType: photo.contentType,
+          sizeBytes: photo.sizeBytes,
+          dataBase64: photo.dataBase64,
+        }).returning().get();
+        if (row) inserted.push(row);
+      }
+      await tx.insert(auditLogs).values({
         id: crypto.randomUUID(),
         organizationId: context.organizationId,
         actorId: context.userId,
@@ -203,6 +218,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ReportNotFoundError) return errorResponse("Rapport introuvable", 404);
     if (error instanceof AttachmentLimitError) return errorResponse("Ce rapport contient déjà trop de pièces jointes", 409);
+    if (error instanceof AttachmentStorageQuotaError) {
+      return errorResponse("Le quota gratuit de photos de cet espace est atteint", 507);
+    }
     console.error("[api/attachments] POST failed", error);
     return errorResponse("Impossible d’enregistrer les photos", 500);
   }
