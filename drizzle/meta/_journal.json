@@ -15,6 +15,55 @@
       "when": 1788177729987,
       "tag": "0001_graceful_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788355782415,
+      "tag": "0002_stiff_magdalene",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788434130372,
+      "tag": "0003_yummy_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788434564806,
+      "tag": "0004_closed_virginia_dare",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788434774209,
+      "tag": "0005_spicy_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788436025889,
+      "tag": "0006_warm_mac_gargan",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788436116139,
+      "tag": "0007_windy_meggan",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788436796277,
+      "tag": "0008_clever_colonel_america",
+      "breakpoints": true
     }
   ]
 }

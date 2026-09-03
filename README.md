@@ -1,100 +1,114 @@
-# vinext-starter
+# Axion Interventions
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Application SaaS de gestion d’interventions terrain pour artisans et équipes de maintenance.
 
-## Prerequisites
+## Stack
 
-- Node.js `>=22.13.0`
+- Bun 1.3+
+- Next.js 16 avec App Router et Turbopack
+- TypeScript et design system CSS sur mesure
+- Drizzle ORM avec SQLite via `bun:sqlite`
+- Better Auth 1.7 avec sessions persistantes et autorisations par organisation
+- PWA avec shell de navigation disponible hors connexion
 
-## Quick Start
+## Démarrage
 
 ```bash
-npm install
-npm run dev
-npm run build
+bun install
+bun run dev
 ```
 
-This starter does not use `wrangler.jsonc`.
+La commande de développement applique les migrations puis démarre Next.js sur
+`http://localhost:3000`.
 
-## Included Shape
+## Commandes
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+bun run dev          # développement Next.js/Turbopack
+bun run build        # build de production
+bun run start        # serveur de production avec Bun
+bun run check        # types, lint, tests et build
+bun run db:generate  # générer une migration Drizzle
+bun run auth:schema  # régénérer le schéma Better Auth
+bun run db:migrate   # appliquer les migrations SQLite
+bun run db:studio    # explorer la base locale
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Copiez `.env.example` vers `.env.local` avant de personnaliser la configuration :
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+```dotenv
+DATABASE_PATH=./data/axion.sqlite
+APP_URL=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=un-secret-aleatoire-de-32-caracteres-minimum
+SEED_DEMO_DATA=true
+```
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+La base locale est créée dans `data/axion.sqlite`. `APP_URL` doit contenir
+l’origine publique complète de l’application en production, par exemple
+`https://axion.example.com`. Elle sert à générer des métadonnées sociales et
+configure l’origine de confiance de Better Auth sans faire confiance à l’en-tête
+`Host` de la requête. `BETTER_AUTH_SECRET` est obligatoire en production et doit
+être un secret aléatoire d’au moins 32 caractères.
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+Les migrations sont appliquées automatiquement par `bun run dev`. Cette étape
+amorce aussi, de façon idempotente, le tenant de démonstration, ses clients,
+leurs sites et ses documents commerciaux. Il n’y a rien à créer manuellement
+dans Prisma : le projet utilise Drizzle et le fichier SQLite ci-dessus.
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+## PWA et cache hors connexion
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+Le manifeste utilise l’identité indigo d’Axion, une icône SVG et des variantes
+PNG 192/512 px, dont une version maskable. Le service worker précharge uniquement
+les ressources publiques, purge ses anciennes versions et ne met jamais en cache
+les routes `/api` ni les pages HTML authentifiées. En cas de coupure, les données
+déjà ouvertes restent visibles, puis une page neutre remplace toute nouvelle
+navigation ; les mutations métier nécessitent toujours une connexion.
+La carte de partage Open Graph est générée par `app/opengraph-image.tsx` avec la
+même identité visuelle.
 
-## Useful Commands
+## Parcours disponibles
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+- responsable : tableau de bord, planning, interventions, clients, rapports et facturation ;
+- technicien : tournée mobile, navigation, statuts et rapport signé ;
+- client : suivi de l’intervention et accès aux documents.
 
-## Learn More
+## Authentification et mode de démonstration
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+L’application utilise Better Auth avec identifiant/mot de passe, cookie de
+session HTTP-only, limitation de débit persistante et appartenance à une
+organisation. Le rôle n’est jamais choisi dans l’interface : il est lu dans la
+session et contrôlé à nouveau par chaque route API. Les données sont filtrées par
+organisation, puis par technicien affecté ou client associé selon le profil.
+
+En développement, `bun run db:migrate` crée cinq comptes de démonstration. Les
+trois raccourcis proposés sur `/login` utilisent le mot de passe
+`Axion-Demo-2026!` (personnalisable avec `DEMO_AUTH_PASSWORD`) :
+
+- responsable : `claire@axion.local` ;
+- technicien : `nicolas@axion.local` ;
+- client : `thomas@atelier-berthier.local`.
+
+Les exemples locaux restent visibles à côté des données SQLite et sont signalés
+dans l’interface par l’état « Démo + API ». Les interventions et les rapports
+signés créés via l’API sont persistés et
+journalisés. Le tracé vectoriel de la signature est conservé avec le rapport,
+affiché comme preuve, ajouté au PDF et son empreinte SHA-256 est inscrite dans le
+journal d’audit. Les clients, leurs sites, les devis et les factures sont aussi
+persistés. La numérotation commerciale est séquentielle par année et par type,
+et les transitions de statut d’un devis sont distinctes de celles d’une facture.
+
+Les photos JPEG/PNG jointes à un rapport sont vérifiées d’après leur contenu,
+limitées à 2 Mo chacune, conservées dans SQLite et consultables depuis la fiche.
+Leur empreinte SHA-256 est journalisée. Ce stockage intégré convient à une
+installation locale ou sur serveur persistant ; un déploiement horizontal devra
+le remplacer par un stockage objet privé.
+
+## Passage en production
+
+Définissez `SEED_DEMO_DATA=false`, utilisez un secret unique, servez l’application
+en HTTPS et conservez la base sur un volume persistant. L’amorçage de démonstration
+est désactivé par défaut quand `NODE_ENV=production`. Pour les invitations et la
+réinitialisation des mots de passe, il restera à connecter le fournisseur d’e-mail
+transactionnel choisi. Un déploiement multi-instance devra aussi migrer SQLite
+vers PostgreSQL et les photos vers un stockage objet privé.

@@ -1,12 +1,86 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
+
 import "./globals.css";
-export async function generateMetadata():Promise<Metadata>{
-  const requestHeaders=await headers();
-  const host=requestHeaders.get("x-forwarded-host")??requestHeaders.get("host")??"localhost:3000";
-  const protocol=requestHeaders.get("x-forwarded-proto")??(host.startsWith("localhost")?"http":"https");
-  const origin=`${protocol}://${host}`;
-  return {metadataBase:new URL(origin),title:{default:"Axion",template:"%s · Axion"},description:"Gestion des interventions terrain pour les équipes de maintenance.",applicationName:"Axion",manifest:"/manifest.webmanifest",appleWebApp:{capable:true,title:"Axion",statusBarStyle:"black-translucent"},openGraph:{type:"website",locale:"fr_FR",siteName:"Axion",title:"Axion — Les interventions terrain, enfin maîtrisées.",description:"Planifiez, suivez et clôturez vos interventions terrain.",images:[{url:`${origin}/og.png`,width:1731,height:909,alt:"Axion — Les interventions terrain, enfin maîtrisées."}]},twitter:{card:"summary_large_image",title:"Axion — Gestion des interventions",description:"Les interventions terrain, enfin maîtrisées.",images:[`${origin}/og.png`]}};
+
+const FALLBACK_APP_URL = "http://localhost:3000";
+const DESCRIPTION =
+  "Planifiez, suivez et clôturez vos interventions terrain avec Axion.";
+
+function getMetadataBase() {
+  const configuredUrl = process.env.APP_URL?.trim();
+
+  if (!configuredUrl) {
+    return new URL(FALLBACK_APP_URL);
+  }
+
+  try {
+    const url = new URL(configuredUrl);
+
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username ||
+      url.password
+    ) {
+      return new URL(FALLBACK_APP_URL);
+    }
+
+    url.pathname = "/";
+    url.search = "";
+    url.hash = "";
+
+    return url;
+  } catch {
+    return new URL(FALLBACK_APP_URL);
+  }
 }
-export const viewport:Viewport={themeColor:"#173f36",width:"device-width",initialScale:1,maximumScale:1};
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="fr"><body>{children}</body></html>}
+
+export const metadata: Metadata = {
+  metadataBase: getMetadataBase(),
+  title: {
+    default: "Axion",
+    template: "%s · Axion",
+  },
+  description: DESCRIPTION,
+  applicationName: "Axion",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/axion-icon.svg", type: "image/svg+xml" }],
+    shortcut: "/axion-icon.svg",
+    apple: [{ url: "/axion-icon-180.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Axion",
+    statusBarStyle: "black-translucent",
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    siteName: "Axion",
+    title: "Axion — Les interventions terrain, enfin maîtrisées.",
+    description: DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Axion — Gestion des interventions",
+    description: DESCRIPTION,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#151c31",
+  colorScheme: "light",
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="fr">
+      <body>{children}</body>
+    </html>
+  );
+}
