@@ -75,6 +75,23 @@ même identité visuelle.
 - technicien : tournée mobile, navigation, statuts et rapport signé ;
 - client : suivi de l’intervention et accès aux documents.
 
+## Organisation du frontend
+
+`app/AxionApp.tsx` assemble la navigation, les écrans et les modales des trois
+profils. Les exemples de démonstration restent disponibles pour explorer les
+parcours responsable, technicien et client.
+
+- `app/axion/views/` : un fichier par écran ; `views.tsx` centralise leurs exports.
+- `use-axion-data.ts` : chargement des données, exemples, synchronisation et connexion.
+- `use-intervention-actions.ts` : création et changements de statut des interventions.
+- `use-commerce-actions.ts` : création des clients et gestion des documents commerciaux.
+- `use-report-editor.ts` : saisie, signature, photos et finalisation des rapports.
+- `report-drafts.ts` et `report-pdf.ts` : brouillons locaux et export PDF.
+- `model.ts` et `primitives.tsx` : types métier, données de démonstration et composants partagés.
+
+Les tests de parcours dans `tests/axion-product.test.ts` suivent cette structure ;
+les tests API continuent de vérifier les validations, la persistance et les accès.
+
 ## Authentification et mode de démonstration
 
 L’application utilise Better Auth avec identifiant/mot de passe, cookie de

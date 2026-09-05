@@ -1,52 +1,19 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon, type IconName } from "./axion/icons";
 import { authClient } from "@/lib/auth-client";
 import {
-  formatDate,
-  isBillingDocument,
-  isClientRecord,
-  isIntervention,
-  isInterventionReport,
-  isReportAttachment,
   matchesSearch,
   roleLabel,
-  seedBillingDocuments,
-  seedClients,
   seedInterventions,
-  seedReports,
-  statusLabel,
   todayKey,
-  type BillingDocument,
-  type BillingStatus,
   type AxionIdentity,
-  type ClientRecord,
-  type CreateBillingValues,
-  type CreateClientValues,
   type Intervention,
-  type InterventionReport,
-  type Priority,
-  type ReportAttachment,
   type Role,
-  type Status,
   type View,
 } from "./axion/model";
-import {
-  Avatar,
-  Drawer,
-  Modal,
-  parseSignatureData,
-  SignaturePad,
-  StatusBadge,
-} from "./axion/primitives";
+import { Avatar, Drawer, Modal, SignaturePad, StatusBadge } from "./axion/primitives";
 import {
   BillingView,
   ClientPortal,
@@ -57,16 +24,14 @@ import {
   ReportsView,
   TechnicianDashboard,
 } from "./axion/views";
+import { useAxionData } from "./axion/use-axion-data";
+import { useInterventionActions } from "./axion/use-intervention-actions";
+import { useCommerceActions } from "./axion/use-commerce-actions";
+import { useReportEditor } from "./axion/use-report-editor";
+import { downloadStoredReport } from "./axion/report-pdf";
+import type { Toast } from "./axion/ui-types";
 
 type NavItem = { id: View; label: string; icon: IconName };
-type Toast = { message: string; tone: "success" | "error" | "info" };
-type ReportDraft = { summary: string; materials: string; signatory: string };
-type ReportDocument = ReportDraft & {
-  reportId?: string;
-  signatureData?: string | null;
-  signedAt?: string | null;
-};
-
 const managerNavigation: NavItem[] = [
   { id: "dashboard", label: "Vue d’ensemble", icon: "home" },
   { id: "planning", label: "Planning", icon: "calendar" },
@@ -88,59 +53,6 @@ const clientNavigation: NavItem[] = [
   { id: "reports", label: "Mes rapports", icon: "file" },
 ];
 
-const defaultReport: ReportDraft = {
-  summary: "",
-  materials: "",
-  signatory: "",
-};
-
-function initialReportFor(item: Intervention): ReportDraft {
-  return {
-    ...defaultReport,
-    signatory:
-      seedClients.find((client) => client.name === item.customerName)?.contact ?? "",
-  };
-}
-
-function reportDraftKey(id: string) {
-  return `axion:demo:report-draft:${id}`;
-}
-
-function readReportDraft(id: string): ReportDraft | null {
-  try {
-    const raw = window.localStorage.getItem(reportDraftKey(id));
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<ReportDraft>;
-    if (
-      typeof value.summary !== "string" ||
-      typeof value.materials !== "string" ||
-      typeof value.signatory !== "string"
-    ) {
-      return null;
-    }
-    return value as ReportDraft;
-  } catch {
-    return null;
-  }
-}
-
-function writeReportDraft(id: string, value: ReportDraft) {
-  try {
-    window.localStorage.setItem(reportDraftKey(id), JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function removeReportDraft(id: string) {
-  try {
-    window.localStorage.removeItem(reportDraftKey(id));
-  } catch {
-    // Storage may be unavailable in private or restricted browser contexts.
-  }
-}
-
 function navigationFor(role: Role) {
   if (role === "technician") return technicianNavigation;
   if (role === "client") return clientNavigation;
@@ -156,203 +68,6 @@ function initialsFor(value: string) {
     .join("");
 }
 
-function demoItemsForIdentity(identity: AxionIdentity, enabled: boolean) {
-  if (!enabled) return [];
-  if (identity.role === "manager") return seedInterventions;
-  if (identity.role === "technician") {
-    return seedInterventions.filter((item) => item.technician === identity.name);
-  }
-  if (identity.customerId === "10000000-0000-4000-8000-000000000001") {
-    return seedInterventions.filter((item) => item.customerName === "Atelier Berthier");
-  }
-  return [];
-}
-
-function ascii(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replaceAll("€", "EUR")
-    .replace(/[^\x20-\x7E]/g, " ")
-    .replaceAll("\\", "\\\\")
-    .replaceAll("(", "\\(")
-    .replaceAll(")", "\\)");
-}
-
-type ApiPayload = {
-  intervention?: unknown;
-  report?: unknown;
-  client?: unknown;
-  document?: unknown;
-  attachments?: unknown;
-  error?: string;
-  details?: { field?: string; message?: string }[];
-};
-
-async function readApiPayload(response: Response): Promise<ApiPayload> {
-  if (!response.headers.get("content-type")?.includes("application/json")) {
-    return { error: `Le serveur a retourné une réponse inattendue (${response.status}).` };
-  }
-  try {
-    const payload = (await response.json()) as ApiPayload;
-    const issue = payload.details?.[0];
-    if (issue?.message) {
-      return {
-        ...payload,
-        error: `${issue.field && issue.field !== "$" ? `${issue.field} : ` : ""}${issue.message}`,
-      };
-    }
-    return payload;
-  } catch {
-    return { error: `La réponse du serveur est illisible (${response.status}).` };
-  }
-}
-
-function wrapPdfText(value: string, maxLength = 78) {
-  const words = ascii(value)
-    .split(/\s+/)
-    .filter(Boolean)
-    .flatMap((word) =>
-      Array.from(
-        { length: Math.ceil(word.length / maxLength) },
-        (_, index) => word.slice(index * maxLength, (index + 1) * maxLength),
-      ),
-    );
-  if (!words.length) return [""];
-  return words.reduce<string[]>((lines, word) => {
-    const current = lines.at(-1);
-    if (!current || current.length + word.length + 1 > maxLength) lines.push(word);
-    else lines[lines.length - 1] = `${current} ${word}`;
-    return lines;
-  }, []);
-}
-
-function formatPdfTimestamp(value: string | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "long",
-    timeStyle: "short",
-  }).format(date);
-}
-
-function downloadReportPdf(item: Intervention, report?: ReportDocument) {
-  const summary =
-    report?.summary.trim() ||
-    item.description ||
-    "Diagnostic, remise en etat et controle de fonctionnement.";
-  const materials = report?.materials.trim();
-  const signatory = report?.signatory.trim();
-  const signatureStrokes = parseSignatureData(report?.signatureData);
-  const lines = [
-    { text: "AXION", size: 12, gap: 28 },
-    { text: "Rapport d'intervention", size: 24, gap: 38 },
-    { text: item.reference, size: 11, gap: 28 },
-    { text: `Intervention : ${item.title}`, size: 13, gap: 24 },
-    { text: `Client : ${item.customerName} - ${item.siteName}`, size: 11, gap: 20 },
-    { text: `Adresse : ${item.address}`, size: 11, gap: 20 },
-    { text: `Date : ${formatDate(item.scheduledDate)} à ${item.scheduledTime}`, size: 11, gap: 20 },
-    { text: `Technicien : ${item.technician}`, size: 11, gap: 28 },
-    { text: "Compte-rendu", size: 14, gap: 24 },
-    ...wrapPdfText(summary).map((text) => ({ text, size: 10, gap: 17 })),
-    ...(materials
-      ? [
-          { text: "Materiel utilise", size: 14, gap: 24 },
-          ...wrapPdfText(materials).map((text) => ({ text, size: 10, gap: 17 })),
-        ]
-      : []),
-    ...(signatory ? [{ text: `Signe par : ${signatory}`, size: 11, gap: 24 }] : []),
-    { text: "Rapport finalise et valide electroniquement dans Axion.", size: 9, gap: 20 },
-  ];
-  const pageCommands: string[][] = [[]];
-  let y = 790;
-  lines.forEach((line) => {
-    if (y - line.gap < 54 && pageCommands.at(-1)?.length) {
-      pageCommands.push([]);
-      y = 790;
-    }
-    pageCommands.at(-1)?.push(
-      `BT /F1 ${line.size} Tf 52 ${y} Td (${ascii(line.text)}) Tj ET`,
-    );
-    y -= line.gap;
-  });
-  const signedAtLabel = formatPdfTimestamp(report?.signedAt);
-  if (signatory && signedAtLabel) {
-    const proofCommands = [
-      "BT /F1 18 Tf 52 790 Td (Preuve de signature) Tj ET",
-      `BT /F1 11 Tf 52 752 Td (${ascii(`Signataire : ${signatory}`)}) Tj ET`,
-      `BT /F1 10 Tf 52 730 Td (${ascii(`Valide le : ${signedAtLabel}`)}) Tj ET`,
-      ...(report?.reportId
-        ? [`BT /F1 9 Tf 52 710 Td (${ascii(`Identifiant : ${report.reportId}`)}) Tj ET`]
-        : []),
-      "0.75 0.78 0.86 RG 52 548 420 128 re S",
-    ];
-    if (signatureStrokes.length) {
-      proofCommands.push(
-        "q 1.8 w 0.12 0.16 0.27 RG 1 J 1 j",
-        ...signatureStrokes.map((stroke) =>
-          `${stroke
-            .map(([x, pointY], index) =>
-              `${(52 + x * 0.6).toFixed(1)} ${(656 - pointY * 0.6).toFixed(1)} ${index ? "l" : "m"}`,
-            )
-            .join(" ")} S`,
-        ),
-        "Q",
-        "BT /F1 9 Tf 52 528 Td (Signature manuscrite enregistree avec le rapport.) Tj ET",
-      );
-    } else {
-      proofCommands.push(
-        "BT /F1 14 Tf 120 607 Td (CONFIRMATION ELECTRONIQUE) Tj ET",
-        "BT /F1 9 Tf 137 582 Td (Validation accessible sans trace manuscrite) Tj ET",
-      );
-    }
-    pageCommands.push(proofCommands);
-  }
-  const pageStreams = pageCommands.map((commands, index) =>
-    [
-      ...commands,
-      `BT /F1 8 Tf 500 28 Td (Page ${index + 1} / ${pageCommands.length}) Tj ET`,
-    ].join("\n"),
-  );
-  const pageIds = pageStreams.map((_, index) => 3 + index * 2);
-  const fontId = 3 + pageStreams.length * 2;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`,
-  ];
-  pageStreams.forEach((commands, index) => {
-    const pageId = pageIds[index];
-    const contentId = pageId + 1;
-    objects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`,
-      `<< /Length ${commands.length} >>\nstream\n${commands}\nendstream`,
-    );
-  });
-  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  pdf += offsets
-    .slice(1)
-    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
-    .join("");
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  const link = document.createElement("a");
-  const url = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
-  link.href = url;
-  link.download = `${item.reference}-rapport.pdf`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
-
 export default function AxionApp({
   identity,
   demoEnabled,
@@ -361,200 +76,39 @@ export default function AxionApp({
   demoEnabled: boolean;
 }) {
   const role = identity.role;
-  const initialDemoItems = demoItemsForIdentity(identity, demoEnabled);
-  const initialDemoItemIds = new Set(initialDemoItems.map((item) => item.id));
   const [view, setView] = useState<View>("dashboard");
-  const [items, setItems] = useState<Intervention[]>(initialDemoItems);
-  const [reports, setReports] = useState<InterventionReport[]>(
-    seedReports.filter((report) => demoEnabled && initialDemoItemIds.has(report.interventionId)),
-  );
-  const [clients, setClients] = useState<ClientRecord[]>(
-    role === "manager" && demoEnabled ? seedClients : [],
-  );
-  const [billingDocuments, setBillingDocuments] = useState<BillingDocument[]>(
-    role === "manager" && demoEnabled ? seedBillingDocuments : [],
-  );
-  const [attachments, setAttachments] = useState<ReportAttachment[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Intervention | null>(null);
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportSigned, setReportSigned] = useState(false);
-  const [reportSignature, setReportSignature] = useState<string | null>(null);
-  const [reportDraft, setReportDraft] = useState(defaultReport);
-  const [photos, setPhotos] = useState<File[]>([]);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [online, setOnline] = useState<boolean | null>(null);
-  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
-  const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unread, setUnread] = useState(3);
   const [signingOut, setSigningOut] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const statusLocks = useRef(new Set<string>());
 
   const notify = useCallback(
     (message: string, tone: Toast["tone"] = "success") => setToast({ message, tone }),
     [],
   );
 
-  const handleSignatureChange = useCallback((signed: boolean, signatureData: string | null) => {
-    setReportSigned(signed);
-    setReportSignature(signatureData);
-  }, []);
-
-  const refreshInterventions = useCallback(
-    async (signal?: AbortSignal, showError = false) => {
-      try {
-        const [response, reportsResponse, clientsResponse, billingResponse, attachmentsResponse] = await Promise.all([
-          fetch("/api/interventions", { cache: "no-store", signal }),
-          fetch("/api/reports", { cache: "no-store", signal }),
-          role === "manager" ? fetch("/api/clients", { cache: "no-store", signal }) : Promise.resolve(null),
-          role === "manager" ? fetch("/api/billing", { cache: "no-store", signal }) : Promise.resolve(null),
-          fetch("/api/attachments", { cache: "no-store", signal }),
-        ]);
-        if (
-          !response.ok ||
-          !reportsResponse.ok ||
-          (clientsResponse && !clientsResponse.ok) ||
-          (billingResponse && !billingResponse.ok) ||
-          !attachmentsResponse.ok
-        ) {
-          throw new Error("API indisponible");
-        }
-        const data = (await response.json()) as { interventions?: unknown[] };
-        const reportData = (await reportsResponse.json()) as { reports?: unknown[] };
-        const clientData = clientsResponse
-          ? (await clientsResponse.json()) as { clients?: unknown[] }
-          : { clients: [] };
-        const billingData = billingResponse
-          ? (await billingResponse.json()) as { documents?: unknown[] }
-          : { documents: [] };
-        const attachmentData = (await attachmentsResponse.json()) as { attachments?: unknown[] };
-        const persisted = (data.interventions ?? []).filter(isIntervention);
-        const persistedReports = (reportData.reports ?? []).filter(isInterventionReport);
-        const persistedClients = (clientData.clients ?? []).filter(isClientRecord);
-        const persistedBilling = (billingData.documents ?? []).filter(isBillingDocument);
-        const persistedAttachments = (attachmentData.attachments ?? []).filter(isReportAttachment);
-        const persistedReferences = new Set(persisted.map((item) => item.reference));
-        const persistedReportInterventions = new Set(
-          persistedReports.map((report) => report.interventionId),
-        );
-        const roleDemoItems = demoItemsForIdentity(identity, demoEnabled);
-        const roleDemoItemIds = new Set(roleDemoItems.map((item) => item.id));
-        setItems([
-          ...persisted,
-          ...roleDemoItems.filter((item) => !persistedReferences.has(item.reference)),
-        ]);
-        setReports([
-          ...persistedReports,
-          ...seedReports.filter(
-            (report) => roleDemoItemIds.has(report.interventionId) && !persistedReportInterventions.has(report.interventionId),
-          ),
-        ]);
-        const persistedClientNames = new Set(
-          persistedClients.map((client) => client.name.toLocaleLowerCase("fr")),
-        );
-        setClients([
-          ...persistedClients,
-          ...(role === "manager" && demoEnabled ? seedClients : []).filter(
-            (client) => !persistedClientNames.has(client.name.toLocaleLowerCase("fr")),
-          ),
-        ]);
-        const persistedDocumentNumbers = new Set(
-          persistedBilling.map((document) => document.number),
-        );
-        setBillingDocuments([
-          ...persistedBilling,
-          ...(role === "manager" && demoEnabled ? seedBillingDocuments : []).filter(
-            (document) => !persistedDocumentNumbers.has(document.number),
-          ),
-        ]);
-        setAttachments(persistedAttachments);
-        setApiAvailable(true);
-        return true;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return false;
-        setApiAvailable(false);
-        if (showError) {
-          notify(
-            "Les données serveur sont indisponibles. La démonstration locale reste accessible.",
-            "info",
-          );
-        }
-        return false;
-      } finally {
-        setLoadingData(false);
-      }
-    },
-    [demoEnabled, identity, notify, role],
-  );
-
-  useEffect(() => {
-    const handleOnline = () => {
-      setOnline(true);
-      setLoadingData(true);
-      notify("Connexion rétablie. Les données peuvent à nouveau être synchronisées.", "info");
-    };
-    const handleOffline = () => {
-      setOnline(false);
-      setApiAvailable(false);
-      setLoadingData(false);
-      notify("Mode hors ligne : consultation disponible, modifications suspendues.", "info");
-    };
-    const initialStatusTimer = window.setTimeout(() => {
-      setOnline(navigator.onLine);
-      if (!navigator.onLine) {
-        setApiAvailable(false);
-        setLoadingData(false);
-      }
-    }, 0);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js", { updateViaCache: "none" })
-        .then((registration) => registration.update())
-        .catch(() => undefined);
-    }
-    return () => {
-      window.clearTimeout(initialStatusTimer);
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, [notify]);
-
-  useEffect(() => {
-    if (online !== true) return;
-    const controller = new AbortController();
-    const onFocus = () => void refreshInterventions(undefined, false);
-    const refreshTimer = window.setTimeout(
-      () => void refreshInterventions(controller.signal, true),
-      0,
-    );
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.clearTimeout(refreshTimer);
-      controller.abort();
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [online, refreshInterventions]);
+  const data = useAxionData(identity, demoEnabled, notify);
+  const { items, reports, clients, billingDocuments, attachments, online, apiAvailable, loadingData } = data;
+  const { createIntervention, updateStatus } = useInterventionActions({
+    ...data, notify, setSaving, setCreateOpen, setSelected,
+  });
+  const { createClient, createBillingDocument, updateBillingStatus } = useCommerceActions({ ...data, notify });
+  const {
+    reportOpen, setReportOpen, reportSigned, reportDraft, setReportDraft, photos,
+    handleSignatureChange, openReportFor, openReport, selectReportPhotos, saveReportDraft, finalizeReport,
+  } = useReportEditor({ ...data, selected, setSelected, setSaving, notify, updateStatus });
 
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-    if (!reportOpen || !selected) return;
-    const timer = window.setTimeout(() => {
-      writeReportDraft(selected.id, reportDraft);
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [reportDraft, reportOpen, selected]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -584,22 +138,6 @@ export default function AxionApp({
   const clientItems = role === "client" ? items : [];
   const profileName = identity.name;
 
-  const downloadStoredReport = (item: Intervention, report?: InterventionReport) => {
-    downloadReportPdf(
-      item,
-      report
-        ? {
-            reportId: report.id,
-            summary: report.summary,
-            materials: report.materials,
-            signatory: report.clientName,
-            signatureData: report.signatureData,
-            signedAt: report.signedAt,
-          }
-        : undefined,
-    );
-  };
-
   const navigate = (next: View) => {
     setView(next);
     setMobileNav(false);
@@ -622,381 +160,6 @@ export default function AxionApp({
     setSelected(null);
     setNotificationsOpen(false);
     setCreateOpen(true);
-  };
-
-  const createIntervention = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!online) {
-      notify("Une connexion est requise pour créer une intervention.", "error");
-      return;
-    }
-    const data = new FormData(event.currentTarget);
-    const creationPayload = {
-      title: String(data.get("title")).trim(),
-      customerName: String(data.get("customerName")).trim(),
-      siteName: String(data.get("siteName")).trim(),
-      address: String(data.get("address")).trim(),
-      technician: String(data.get("technician")).trim(),
-      scheduledDate: String(data.get("scheduledDate")),
-      scheduledTime: String(data.get("scheduledTime")),
-      durationMinutes: Number(data.get("durationMinutes")),
-      priority: String(data.get("priority")) as Priority,
-      description: String(data.get("description")).trim(),
-    };
-
-    setSaving(true);
-    let responseStatus = 0;
-    try {
-      const response = await fetch("/api/interventions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(creationPayload),
-      });
-      responseStatus = response.status;
-      const payload = await readApiPayload(response);
-      if (!response.ok || !isIntervention(payload.intervention)) {
-        throw new Error(payload.error ?? "Création impossible");
-      }
-      setItems((current) => [payload.intervention as Intervention, ...current]);
-      setApiAvailable(true);
-      setCreateOpen(false);
-      notify(`${(payload.intervention as Intervention).reference} a été créée et affectée.`);
-    } catch (error) {
-      setApiAvailable(responseStatus > 0 && responseStatus < 500);
-      notify(error instanceof Error ? error.message : "La création a échoué. Réessayez.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const updateStatus = async (id: string, status: Status) => {
-    if (!online) {
-      notify("Une connexion est requise pour modifier le statut.", "error");
-      return false;
-    }
-    const previous = items.find((item) => item.id === id);
-    if (!previous) return false;
-    if (statusLocks.current.has(id)) {
-      notify("Une mise à jour est déjà en cours pour cette intervention.", "info");
-      return false;
-    }
-    statusLocks.current.add(id);
-
-    const apply = (nextStatus: Status) => {
-      setItems((current) =>
-        current.map((item) => (item.id === id ? { ...item, status: nextStatus } : item)),
-      );
-      setSelected((current) =>
-        current?.id === id ? { ...current, status: nextStatus } : current,
-      );
-    };
-
-    apply(status);
-    if (id.startsWith("demo-")) {
-      statusLocks.current.delete(id);
-      notify(`Statut de démonstration mis à jour : ${statusLabel[status]}.`);
-      return true;
-    }
-
-    let responseStatus = 0;
-    try {
-      const response = await fetch("/api/interventions", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id, status }),
-      });
-      responseStatus = response.status;
-      const payload = await readApiPayload(response);
-      if (!response.ok || !isIntervention(payload.intervention)) {
-        if (response.status === 404 || response.status === 409) {
-          void refreshInterventions(undefined, false);
-        }
-        throw new Error(payload.error ?? "Mise à jour impossible");
-      }
-      const persisted = payload.intervention as Intervention;
-      setItems((current) =>
-        current.map((item) => (item.id === id ? { ...item, ...persisted } : item)),
-      );
-      setSelected((current) =>
-        current?.id === id ? { ...current, ...persisted } : current,
-      );
-      setApiAvailable(true);
-      notify(`Statut mis à jour : ${statusLabel[status]}.`);
-      return true;
-    } catch (error) {
-      setApiAvailable(responseStatus > 0 && responseStatus < 500);
-      apply(previous.status);
-      notify(error instanceof Error ? error.message : "La mise à jour a échoué.", "error");
-      return false;
-    } finally {
-      statusLocks.current.delete(id);
-    }
-  };
-
-  const createClient = async (client: CreateClientValues) => {
-    if (!online) {
-      notify("Une connexion est requise pour créer un client.", "error");
-      return false;
-    }
-    let responseStatus = 0;
-    try {
-      const response = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(client),
-      });
-      responseStatus = response.status;
-      const payload = await readApiPayload(response);
-      if (!response.ok || !isClientRecord(payload.client)) {
-        throw new Error(payload.error ?? "Création impossible");
-      }
-      const created = payload.client as ClientRecord;
-      setClients((current) => [
-        created,
-        ...current.filter(
-          (item) => item.name.toLocaleLowerCase("fr") !== created.name.toLocaleLowerCase("fr"),
-        ),
-      ]);
-      setApiAvailable(true);
-      notify(`${created.name} a été enregistré avec son premier site.`);
-      return true;
-    } catch (error) {
-      setApiAvailable(responseStatus > 0 && responseStatus < 500);
-      notify(error instanceof Error ? error.message : "La création du client a échoué.", "error");
-      return false;
-    }
-  };
-
-  const createBillingDocument = async (document: CreateBillingValues) => {
-    if (!online) {
-      notify("Une connexion est requise pour créer un document.", "error");
-      return false;
-    }
-    let responseStatus = 0;
-    try {
-      const response = await fetch("/api/billing", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(document),
-      });
-      responseStatus = response.status;
-      const payload = await readApiPayload(response);
-      if (!response.ok || !isBillingDocument(payload.document)) {
-        throw new Error(payload.error ?? "Création impossible");
-      }
-      const created = payload.document as BillingDocument;
-      setBillingDocuments((current) => [created, ...current]);
-      setApiAvailable(true);
-      notify(`${created.number} a été enregistré en brouillon.`);
-      return true;
-    } catch (error) {
-      setApiAvailable(responseStatus > 0 && responseStatus < 500);
-      notify(error instanceof Error ? error.message : "La création du document a échoué.", "error");
-      return false;
-    }
-  };
-
-  const updateBillingStatus = async (document: BillingDocument, status: BillingStatus) => {
-    if (!online) {
-      notify("Une connexion est requise pour modifier ce document.", "error");
-      return false;
-    }
-    let responseStatus = 0;
-    try {
-      const response = await fetch("/api/billing", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: document.id, status }),
-      });
-      responseStatus = response.status;
-      const payload = await readApiPayload(response);
-      if (!response.ok || !isBillingDocument(payload.document)) {
-        throw new Error(payload.error ?? "Mise à jour impossible");
-      }
-      const updated = payload.document as BillingDocument;
-      setBillingDocuments((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      setApiAvailable(true);
-      const labels: Record<BillingStatus, string> = {
-        draft: "brouillon",
-        sent: "envoyé",
-        paid: "payé",
-        overdue: "en retard",
-        accepted: "accepté",
-        rejected: "refusé",
-      };
-      notify(`${updated.number} : statut ${labels[updated.status]}.`);
-      return true;
-    } catch (error) {
-      setApiAvailable(responseStatus > 0 && responseStatus < 500);
-      notify(error instanceof Error ? error.message : "La mise à jour a échoué.", "error");
-      return false;
-    }
-  };
-
-  const openReportFor = (item: Intervention) => {
-    setSelected(item);
-    setReportDraft(readReportDraft(item.id) ?? initialReportFor(item));
-    setReportSigned(false);
-    setReportSignature(null);
-    setPhotos([]);
-    setReportOpen(true);
-  };
-
-  const openReport = () => {
-    if (selected) openReportFor(selected);
-  };
-
-  const selectReportPhotos = (files: FileList | null) => {
-    const selectedFiles = Array.from(files ?? []);
-    if (selectedFiles.length > 4) {
-      setPhotos([]);
-      notify("Vous pouvez joindre jusqu’à 4 photos par envoi.", "error");
-      return;
-    }
-    const invalid = selectedFiles.find(
-      (file) => !["image/jpeg", "image/png"].includes(file.type) || file.size <= 0 || file.size > 2 * 1024 * 1024,
-    );
-    if (invalid) {
-      setPhotos([]);
-      notify("Chaque photo doit être un JPEG ou PNG de 2 Mo maximum.", "error");
-      return;
-    }
-    setPhotos(selectedFiles);
-  };
-
-  const saveReportDraft = () => {
-    if (!selected) return;
-    const stored = writeReportDraft(selected.id, reportDraft);
-    if (!stored) {
-      notify("Le brouillon n’a pas pu être enregistré sur cet appareil.", "error");
-      return;
-    }
-    setReportOpen(false);
-    notify("Brouillon enregistré sur cet appareil.", "info");
-  };
-
-  const finalizeReport = async () => {
-    if (!selected || !reportSigned) return;
-    if (!reportDraft.summary.trim() || !reportDraft.signatory.trim()) {
-      notify("Le compte-rendu et le nom du signataire sont obligatoires.", "error");
-      return;
-    }
-    if (!online) {
-      notify("Une connexion est requise pour finaliser le rapport.", "error");
-      return;
-    }
-
-    setSaving(true);
-    let completed: Intervention | null = null;
-    let savedReport: InterventionReport | null = null;
-    let responseStatus = 0;
-    try {
-      if (selected.id.startsWith("demo-")) {
-        const success = await updateStatus(selected.id, "completed");
-        if (!success) return;
-        completed = {
-          ...selected,
-          status: "completed",
-          description: reportDraft.summary.trim(),
-        };
-        const signedAt = new Date().toISOString();
-        savedReport = {
-          id: `demo-report-${selected.id}`,
-          interventionId: selected.id,
-          summary: reportDraft.summary.trim(),
-          materials: reportDraft.materials.trim(),
-          clientName: reportDraft.signatory.trim(),
-          signedAt,
-          signatureData: reportSignature,
-          createdAt: signedAt,
-          demo: true,
-        };
-        setReports((current) => [
-          savedReport as InterventionReport,
-          ...current.filter((report) => report.interventionId !== selected.id),
-        ]);
-      } else {
-        const response = await fetch("/api/reports", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            interventionId: selected.id,
-            summary: reportDraft.summary.trim(),
-            materials: reportDraft.materials.trim(),
-            clientName: reportDraft.signatory.trim(),
-            ...(reportSignature ? { signatureData: reportSignature } : {}),
-          }),
-        });
-        responseStatus = response.status;
-        const payload = await readApiPayload(response);
-        if (
-          !response.ok ||
-          !isIntervention(payload.intervention) ||
-          !isInterventionReport(payload.report)
-        ) {
-          if (response.status === 404 || response.status === 409) {
-            void refreshInterventions(undefined, false);
-          }
-          throw new Error(payload.error ?? "Finalisation impossible");
-        }
-        completed = {
-          ...(payload.intervention as Intervention),
-          description: reportDraft.summary.trim(),
-        };
-        savedReport = payload.report as InterventionReport;
-        setItems((current) =>
-          current.map((item) => (item.id === completed?.id ? completed : item)),
-        );
-        setReports((current) => [
-          payload.report as InterventionReport,
-          ...current.filter(
-            (report) => report.interventionId !== (payload.report as InterventionReport).interventionId,
-          ),
-        ]);
-        setApiAvailable(true);
-      }
-
-      let photoUploadError: string | null = null;
-      if (photos.length && savedReport && !selected.id.startsWith("demo-")) {
-        try {
-          const formData = new FormData();
-          formData.set("interventionId", selected.id);
-          formData.set("reportId", savedReport.id);
-          photos.forEach((photo) => formData.append("photos", photo, photo.name));
-          const photoResponse = await fetch("/api/attachments", { method: "POST", body: formData });
-          const photoPayload = await readApiPayload(photoResponse);
-          const uploaded = Array.isArray(photoPayload.attachments)
-            ? photoPayload.attachments.filter(isReportAttachment)
-            : [];
-          if (!photoResponse.ok || uploaded.length !== photos.length) {
-            throw new Error(photoPayload.error ?? "Enregistrement des photos impossible");
-          }
-          setAttachments((current) => [...current, ...uploaded]);
-        } catch (error) {
-          photoUploadError = error instanceof Error ? error.message : "Enregistrement des photos impossible";
-        }
-      }
-
-      removeReportDraft(selected.id);
-      setReportOpen(false);
-      setSelected(null);
-      downloadStoredReport(completed, savedReport);
-      notify(
-        photoUploadError
-          ? `Rapport enregistré, mais les photos n’ont pas été jointes : ${photoUploadError}`
-          : photos.length
-            ? `Rapport et ${photos.length} photo${photos.length > 1 ? "s" : ""} enregistrés. Le PDF a été téléchargé.`
-            : "Rapport finalisé et enregistré. Le PDF a été téléchargé.",
-        photoUploadError ? "error" : "success",
-      );
-    } catch (error) {
-      setApiAvailable(responseStatus > 0 && responseStatus < 500);
-      notify(error instanceof Error ? error.message : "La finalisation a échoué.", "error");
-    } finally {
-      setSaving(false);
-    }
   };
 
   const renderView = () => {

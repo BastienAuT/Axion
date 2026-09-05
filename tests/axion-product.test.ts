@@ -14,11 +14,13 @@ function declaration(source: string, start: string, end: string) {
 
 describe("Axion", () => {
   test("compose les trois parcours métier depuis des modules dédiés", async () => {
-    const [app, model, primitives, views] = await Promise.all([
+    const [app, model, primitives, manager, technician, client] = await Promise.all([
       readSource("app/AxionApp.tsx"),
       readSource("app/axion/model.ts"),
       readSource("app/axion/primitives.tsx"),
-      readSource("app/axion/views.tsx"),
+      readSource("app/axion/views/ManagerDashboard.tsx"),
+      readSource("app/axion/views/TechnicianDashboard.tsx"),
+      readSource("app/axion/views/ClientPortal.tsx"),
     ]);
 
     expect(app).toContain('from "./axion/model"');
@@ -29,8 +31,8 @@ describe("Axion", () => {
     expect(app).toContain("const role = identity.role");
     expect(app).toContain("authClient.signOut()");
     expect(app).not.toContain("<select value={role}");
-    for (const view of ["ManagerDashboard", "TechnicianDashboard", "ClientPortal"]) {
-      expect(views).toContain(`export function ${view}`);
+    for (const [view, source] of [["ManagerDashboard", manager], ["TechnicianDashboard", technician], ["ClientPortal", client]]) {
+      expect(source).toContain(`export function ${view}`);
     }
 
     expect(primitives).toContain("export function SignaturePad");
@@ -38,16 +40,17 @@ describe("Axion", () => {
     expect(primitives).toContain("Alternative accessible à la signature manuscrite.");
     expect(app).toContain("<SignaturePad");
 
-    expect(views).toContain("Exporter");
-    expect(views).toContain('{ type: "text/csv" }');
-    expect(views).toContain("interventions-axion-${todayKey}.csv");
+    expect(manager).toContain("Exporter");
+    expect(manager).toContain('{ type: "text/csv" }');
+    expect(manager).toContain("interventions-axion-${todayKey}.csv");
   });
 
   test("adapte la navigation et les données au rôle actif", async () => {
     const app = await readSource("app/AxionApp.tsx");
+    const data = await readSource("app/axion/use-axion-data.ts");
     const managerNavigation = declaration(app, "const managerNavigation", "const technicianNavigation");
     const technicianNavigation = declaration(app, "const technicianNavigation", "const clientNavigation");
-    const clientNavigation = declaration(app, "const clientNavigation", "const defaultReport");
+    const clientNavigation = declaration(app, "const clientNavigation", "function navigationFor");
 
     expect(managerNavigation.match(/\bid:/g)).toHaveLength(6);
     expect(managerNavigation).toContain('id: "clients"');
@@ -63,21 +66,22 @@ describe("Axion", () => {
     expect(clientNavigation).not.toContain('id: "planning"');
     expect(clientNavigation).not.toContain('id: "billing"');
 
-    expect(app).toContain("item.technician === identity.name");
-    expect(app).toContain('identity.customerId === "10000000-0000-4000-8000-000000000001"');
+    expect(data).toContain("item.technician === identity.name");
+    expect(data).toContain('identity.customerId === "10000000-0000-4000-8000-000000000001"');
     expect(app).toContain("items={technicianItems}");
     expect(app).toContain("items={clientItems}");
   });
 
   test("produit un vrai PDF et garde les modales accessibles", async () => {
-    const [app, primitives] = await Promise.all([
+    const [app, primitives, pdf] = await Promise.all([
       readSource("app/AxionApp.tsx"),
       readSource("app/axion/primitives.tsx"),
+      readSource("app/axion/report-pdf.ts"),
     ]);
 
-    expect(app).toContain('let pdf = "%PDF-1.4\\n"');
-    expect(app).toContain('{ type: "application/pdf" }');
-    expect(app).toContain('link.download = `${item.reference}-rapport.pdf`');
+    expect(pdf).toContain('let pdf = "%PDF-1.4\\n"');
+    expect(pdf).toContain('{ type: "application/pdf" }');
+    expect(pdf).toContain('link.download = `${item.reference}-rapport.pdf`');
     expect(app).toContain("Finaliser et générer le PDF");
 
     expect(primitives).toContain('role="dialog"');
@@ -88,20 +92,22 @@ describe("Axion", () => {
   });
 
   test("préserve le mode hors ligne et synchronise les statuts par PATCH", async () => {
-    const [app, route, validation, serviceWorker] = await Promise.all([
+    const [app, route, validation, serviceWorker, data, actions] = await Promise.all([
       readSource("app/AxionApp.tsx"),
       readSource("app/api/interventions/route.ts"),
       readSource("app/api/interventions/validation.ts"),
       readSource("public/sw.js"),
+      readSource("app/axion/use-axion-data.ts"),
+      readSource("app/axion/use-intervention-actions.ts"),
     ]);
 
-    expect(app).toContain('window.addEventListener("offline"');
-    expect(app).toContain('.register("/sw.js"');
+    expect(data).toContain('window.addEventListener("offline"');
+    expect(data).toContain('.register("/sw.js"');
     expect(app).toContain('className="offline-banner" role="status"');
     expect(serviceWorker).toContain("Authenticated HTML");
     expect(serviceWorker).not.toContain('"/",\n  "/manifest.webmanifest"');
 
-    expect(app).toContain('method: "PATCH"');
+    expect(actions).toContain('method: "PATCH"');
     expect(route).toContain("export async function PATCH");
     expect(route).toContain("canTransitionStatus(currentStatus, validated.value.status)");
     expect(route).toContain('action: "intervention.status_changed"');
