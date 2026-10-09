@@ -1,9 +1,10 @@
 import { dateFromToday, todayKey } from "./dates";
+import { createDemoPlanning } from "./demo-planning";
 import type { BillingDocument, ClientRecord, Intervention, InterventionReport } from "./model";
 
 const currentYear = Number(todayKey.slice(0, 4));
 
-export const seedInterventions: Intervention[] = [
+const initialInterventions: Intervention[] = [
   {
     id: "40000000-0000-4000-8000-000000000001",
     reference: `INT-${currentYear}-0048`,
@@ -112,6 +113,11 @@ export const seedInterventions: Intervention[] = [
     status: "scheduled",
     description: "Visite annuelle, nettoyage du corps de chauffe et contrôle de combustion.",
   },
+];
+
+export const seedInterventions: Intervention[] = [
+  ...initialInterventions,
+  ...createDemoPlanning(dateFromToday(1), initialInterventions.slice(0, 5)),
 ];
 
 export const seedReports: InterventionReport[] = seedInterventions

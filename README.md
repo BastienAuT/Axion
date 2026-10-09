@@ -108,6 +108,12 @@ trois raccourcis proposés sur `/login` utilisent le mot de passe
 - technicien : `nicolas@axion.local` ;
 - client : `thomas@atelier-berthier.local`.
 
+Le planning de démonstration comprend trois interventions par jour du lundi au
+vendredi, du lendemain de l’amorçage au 31 décembre 2027 inclus. Les missions
+se répartissent entre Nicolas Martin, Sofia Benali et Lucas Morel et les cinq
+clients de démonstration. Leurs identifiants dépendent de la date et du créneau :
+relancer `bun run db:migrate` les ajoute sans dupliquer les missions existantes.
+
 Les exemples locaux restent visibles à côté des données SQLite et sont signalés
 dans l’interface par l’état « Démo + API ». Les interventions et les rapports
 signés créés via l’API sont persistés et
