@@ -1,0 +1,349 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: fixed;
+  z-index: 40;
+  inset: 0 auto 0 0;
+  display: flex;
+  width: 276px;
+  flex-direction: column;
+  padding: 24px 18px 20px;
+  overflow: hidden;
+  color: #dce2f2;
+  background:
+    radial-gradient(circle at 10% 4%, rgba(116, 128, 245, 0.18), transparent 17rem),
+    linear-gradient(180deg, #171c33 0%, #13182b 100%);
+  box-shadow: 8px 0 34px rgba(20, 24, 44, 0.08);
+}
+
+.sidebar::after {
+  position: absolute;
+  right: -80px;
+  bottom: 12%;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: rgba(88, 98, 223, 0.07);
+  content: "";
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.brand {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  margin-bottom: 26px;
+}
+
+.brand-mark {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #7a85f4, #4f59d6);
+  box-shadow: 0 10px 28px rgba(77, 87, 211, 0.36);
+}
+
+.brand-mark::before,
+.brand-mark::after,
+.brand-mark > span {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  content: "";
+}
+
+.brand-mark::before {
+  left: 7px;
+  border-right-color: transparent;
+}
+
+.brand-mark::after {
+  right: 7px;
+  border-left-color: transparent;
+}
+
+.brand-mark > span {
+  width: 7px;
+  height: 7px;
+  border-width: 2px;
+  background: #fff;
+}
+
+.brand > span:nth-child(2) {
+  color: #fff;
+  font-size: 25px;
+  font-weight: 760;
+  line-height: 19px;
+  letter-spacing: -0.9px;
+}
+
+.brand small {
+  display: block;
+  margin-top: 5px;
+  color: #8f99b5;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  letter-spacing: 2.3px;
+}
+
+.workspace {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  margin-bottom: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.workspace-badge {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 11px;
+  color: #dce1ff;
+  background: rgba(117, 130, 240, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workspace > div:nth-child(2) {
+  min-width: 0;
+}
+
+.workspace strong,
+.workspace small,
+.profile strong,
+.profile small,
+.sync-state strong,
+.sync-state small {
+  display: block;
+}
+
+.workspace strong {
+  overflow: hidden;
+  color: #f6f7fc;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace small {
+  margin-top: 4px;
+  color: #929cb7;
+  font-size: 10px;
+}
+
+.sidebar nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nav-section-label {
+  padding: 0 13px;
+  margin-bottom: 7px;
+  color: #727d9b;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.25px;
+  text-transform: uppercase;
+}
+
+.sidebar nav button {
+  position: relative;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 11px;
+  color: #9fa9c2;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 580;
+  text-align: left;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.sidebar nav button::before {
+  position: absolute;
+  left: -7px;
+  width: 3px;
+  height: 20px;
+  border-radius: 0 4px 4px 0;
+  background: #8994ff;
+  content: "";
+  opacity: 0;
+  transform: scaleY(0.5);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.sidebar nav button:hover,
+.sidebar nav button.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.sidebar nav button:hover {
+  transform: translateX(2px);
+}
+
+.sidebar nav button.active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.sidebar nav button svg {
+  flex: 0 0 19px;
+}
+
+.sidebar nav em {
+  min-width: 24px;
+  padding: 3px 7px;
+  margin-left: auto;
+  border-radius: 999px;
+  color: #dfe3ff;
+  background: rgba(125, 138, 246, 0.18);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: center;
+}
+
+.sidebar-foot {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+}
+
+.sync-state,
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.sync-state {
+  padding: 13px 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.sync-state > span {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #58caa3;
+  box-shadow: 0 0 0 5px rgba(88, 202, 163, 0.11);
+}
+
+.sync-state > span.offline {
+  background: #efb15b;
+  box-shadow: 0 0 0 5px rgba(239, 177, 91, 0.11);
+}
+
+.sync-state > span.pending {
+  background: #9ca5bc;
+  box-shadow: 0 0 0 5px rgba(156, 165, 188, 0.1);
+}
+
+.sync-state strong,
+.profile strong {
+  color: #eef0f8;
+  font-size: 11px;
+}
+
+.sync-state small,
+.profile small {
+  margin-top: 3px;
+  color: #858faa;
+  font-size: 10px;
+}
+
+.profile {
+  padding: 4px 9px;
+}
+
+.profile > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.avatar {
+  position: relative;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 50%;
+  color: #4551be;
+  background: linear-gradient(145deg, #eef0ff, #dfe3ff);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.avatar > i {
+  position: absolute;
+  right: -1px;
+  bottom: 0;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #39b88f;
+}
+
+.profile .avatar {
+  color: #fff;
+  background: linear-gradient(145deg, #7380ee, #505bd1);
+}
+
+.profile-signout {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: #8f99b5;
+  background: rgba(255, 255, 255, 0.035);
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.profile-signout:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
+}
+

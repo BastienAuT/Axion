@@ -1,0 +1,102 @@
+@media (max-width: 460px) {
+  .page-heading {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .heading-actions,
+  .heading-actions > button {
+    width: 100%;
+  }
+
+  .heading-actions .secure-pill {
+    width: 100%;
+  }
+
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .metric {
+    min-height: 94px;
+    align-items: center;
+  }
+
+  .performance {
+    min-height: 145px;
+  }
+
+  .next-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .job-actions {
+    flex-direction: column;
+  }
+
+  .light-primary-button,
+  .dark-secondary-button {
+    width: 100%;
+  }
+
+  .client-progress {
+    grid-template-columns: 1fr;
+  }
+
+  .client-progress > span {
+    padding: 0 0 0 21px;
+    border-top: 0;
+    border-left: 2px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .client-progress > span::before {
+    top: 2px;
+    left: -5px;
+  }
+
+  .client-progress > span.done,
+  .client-progress > span.current {
+    border-left-color: #aeb8ff;
+  }
+
+  .agenda-day {
+    grid-template-columns: 1fr;
+  }
+
+  .agenda-date {
+    min-height: 45px;
+    flex-direction: row;
+    gap: 7px;
+  }
+
+  .agenda-date strong {
+    font-size: 16px;
+  }
+
+  .contact-strip {
+    flex-direction: column;
+  }
+
+  .contact-strip a {
+    width: 100%;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .status-stepper li span {
+    display: none;
+  }
+
+  .modal > header,
+  .drawer > header {
+    padding: 18px;
+  }
+
+  .signature-canvas-wrap {
+    height: 125px;
+  }
+}
+

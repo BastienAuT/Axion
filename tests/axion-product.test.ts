@@ -14,10 +14,10 @@ function declaration(source: string, start: string, end: string) {
 
 describe("Axion", () => {
   test("compose les trois parcours métier depuis des modules dédiés", async () => {
-    const [app, model, primitives, manager, technician, client] = await Promise.all([
+    const [app, model, signature, manager, technician, client] = await Promise.all([
       readSource("app/AxionApp.tsx"),
       readSource("app/axion/model.ts"),
-      readSource("app/axion/primitives.tsx"),
+      readSource("app/axion/primitives/Signature.tsx"),
       readSource("app/axion/views/ManagerDashboard.tsx"),
       readSource("app/axion/views/TechnicianDashboard.tsx"),
       readSource("app/axion/views/ClientPortal.tsx"),
@@ -35,9 +35,9 @@ describe("Axion", () => {
       expect(source).toContain(`export function ${view}`);
     }
 
-    expect(primitives).toContain("export function SignaturePad");
-    expect(primitives).toContain('aria-label="Zone de signature client"');
-    expect(primitives).toContain("Alternative accessible à la signature manuscrite.");
+    expect(signature).toContain("export function SignaturePad");
+    expect(signature).toContain('aria-label="Zone de signature client"');
+    expect(signature).toContain("Alternative accessible à la signature manuscrite.");
     expect(app).toContain("<SignaturePad");
 
     expect(manager).toContain("Exporter");
@@ -73,9 +73,11 @@ describe("Axion", () => {
   });
 
   test("produit un vrai PDF et garde les modales accessibles", async () => {
-    const [app, primitives, pdf] = await Promise.all([
+    const [app, modal, drawer, layer, pdf] = await Promise.all([
       readSource("app/AxionApp.tsx"),
-      readSource("app/axion/primitives.tsx"),
+      readSource("app/axion/primitives/Modal.tsx"),
+      readSource("app/axion/primitives/Drawer.tsx"),
+      readSource("app/axion/primitives/use-accessible-layer.ts"),
       readSource("app/axion/report-pdf.ts"),
     ]);
 
@@ -84,11 +86,14 @@ describe("Axion", () => {
     expect(pdf).toContain('link.download = `${item.reference}-rapport.pdf`');
     expect(app).toContain("Finaliser et générer le PDF");
 
-    expect(primitives).toContain('role="dialog"');
-    expect(primitives).toContain('aria-modal="true"');
-    expect(primitives).toContain("aria-labelledby={titleId}");
-    expect(primitives).toContain('event.key === "Escape"');
-    expect(primitives).toContain("previousFocus?.focus()");
+    for (const component of [modal, drawer]) {
+      expect(component).toContain('role="dialog"');
+      expect(component).toContain('aria-modal="true"');
+      expect(component).toContain("aria-labelledby={titleId}");
+      expect(component).toContain("useAccessibleLayer(onClose)");
+    }
+    expect(layer).toContain('event.key === "Escape"');
+    expect(layer).toContain("previousFocus?.focus()");
   });
 
   test("préserve le mode hors ligne et synchronise les statuts par PATCH", async () => {

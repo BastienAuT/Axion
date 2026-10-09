@@ -1,0 +1,229 @@
+.reports-head,
+.report-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.4fr) minmax(130px, 1fr) 150px auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.reports-head {
+  min-height: 42px;
+  padding: 0 18px;
+  color: #626c80;
+  background: #fafbfe;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+}
+
+.report-row {
+  min-height: 76px;
+  padding: 11px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.report-row strong,
+.report-row small {
+  display: block;
+}
+
+.report-row strong {
+  font-size: 11px;
+}
+
+.report-row small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.report-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.report-title > i {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  flex: 0 0 39px;
+  place-items: center;
+  border-radius: 11px;
+  color: #be5148;
+  background: #ffebe8;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.sent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.sent.demo {
+  color: var(--primary);
+}
+
+.report-proof {
+  display: block;
+  color: var(--ink);
+}
+
+.report-proof > small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+}
+
+.attachment-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.attachment-gallery a {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f4f6fb;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.attachment-gallery a:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.attachment-gallery img {
+  display: block;
+  width: 112px;
+  height: 82px;
+  object-fit: cover;
+}
+
+.attachment-gallery > small {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.attachment-gallery.compact {
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.attachment-gallery.compact img {
+  width: 44px;
+  height: 38px;
+}
+
+.attachment-gallery.compact > small {
+  color: var(--success);
+}
+
+.billing-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.billing-head,
+.billing-row {
+  display: grid;
+  grid-template-columns: 1.05fr 1.2fr 0.8fr 0.75fr 0.8fr;
+  align-items: center;
+  gap: 15px;
+}
+
+.billing-head {
+  min-height: 40px;
+  padding: 0 18px;
+  color: #626c80;
+  background: #fafbfe;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+}
+
+.billing-row {
+  min-height: 70px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.billing-row strong,
+.billing-row small {
+  display: block;
+}
+
+.billing-row small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.invoice-status {
+  position: relative;
+  width: max-content;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.invoice-status select {
+  min-height: 30px;
+  padding: 0 25px 0 10px;
+  border: 0;
+  border-radius: inherit;
+  appearance: none;
+  color: inherit;
+  background: transparent;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.invoice-status::after {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  content: "";
+  pointer-events: none;
+  transform: translateY(-65%) rotate(45deg);
+}
+
+.invoice-draft {
+  color: #667083;
+  background: #eff1f5;
+}
+
+.invoice-sent {
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+}
+
+.invoice-paid {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.invoice-overdue {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+

@@ -1,0 +1,202 @@
+.popover-backdrop {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.notifications-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(390px, calc(100vw - 28px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: var(--shadow-lg);
+  animation: pop-in 160ms ease both;
+}
+
+.notifications-popover header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 10px 12px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.notifications-popover header strong,
+.notifications-popover header small {
+  display: block;
+}
+
+.notifications-popover header strong {
+  font-size: 14px;
+}
+
+.notifications-popover header small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.notifications-popover header button {
+  padding: 6px;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.notifications-popover > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 13px 10px;
+  border: 0;
+  border-bottom: 1px solid #f0f2f6;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+}
+
+.notifications-popover > button:last-child {
+  border-bottom: 0;
+}
+
+.notifications-popover > button:hover {
+  background: #f8f9fc;
+}
+
+.notification-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+.notifications-popover > button strong,
+.notifications-popover > button small {
+  display: block;
+}
+
+.notifications-popover > button strong {
+  font-size: 12px;
+}
+
+.notifications-popover > button small,
+.notifications-popover > button time {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.primary-button,
+.secondary-button,
+.light-primary-button,
+.dark-secondary-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1;
+  white-space: nowrap;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.primary-button {
+  color: #fff;
+  background: linear-gradient(135deg, #626ce8, #4d57d3);
+  box-shadow: 0 7px 18px rgba(76, 87, 210, 0.2);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5661df, #434dc4);
+  box-shadow: 0 9px 22px rgba(76, 87, 210, 0.28);
+  transform: translateY(-1px);
+}
+
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.primary-button:disabled {
+  opacity: 0.5;
+}
+
+.secondary-button {
+  border-color: var(--line-strong);
+  color: #3e475a;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(22, 28, 51, 0.03);
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: #c4cada;
+  background: #fafbfe;
+}
+
+.secondary-button.compact,
+.primary-button.compact {
+  min-height: 36px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--primary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.text-button:hover {
+  background: var(--primary-soft);
+}
+
+.offline-banner {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 8px 24px;
+  border-bottom: 1px solid #f0dec3;
+  color: #855417;
+  background: #fff7ea;
+  font-size: 12px;
+}
+
+.content {
+  width: 100%;
+  max-width: 1580px;
+  padding: 36px 36px 70px;
+  margin: 0 auto;
+  animation: content-in 280ms ease both;
+}
+

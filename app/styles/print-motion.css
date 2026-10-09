@@ -1,0 +1,57 @@
+@media print {
+  body {
+    padding: 0;
+    background: #fff;
+  }
+
+  .sidebar,
+  .topbar,
+  .mobile-bottom-nav,
+  .mobile-quick-add,
+  .page-heading,
+  .offline-banner,
+  .modal-backdrop,
+  .drawer > header .icon-button,
+  .drawer > footer,
+  .toast {
+    display: none !important;
+  }
+
+  main {
+    width: 100%;
+    margin: 0;
+  }
+
+  .content {
+    padding: 20px;
+  }
+
+  .drawer-layer,
+  .drawer {
+    position: static;
+    width: 100%;
+    height: auto;
+    box-shadow: none;
+  }
+
+  .drawer-body {
+    overflow: visible;
+  }
+
+  .panel,
+  .metric {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
